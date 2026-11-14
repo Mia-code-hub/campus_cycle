@@ -53,12 +53,17 @@ export function hasModelKey(model: string): boolean {
   return confOf(model).apiKey.length > 0;
 }
 
-// 是否具备识图能力：DeepSeek 官方 API 目前无视觉模型，图片会直接被拒，
-// 因此只有百炼的 qwen-vl 系列算「能用图」。不可用时调用方应降级为纯文本。
+// 是否具备识图能力：DeepSeek 官方 API 目前无视觉模型，图片会直接被拒。
+// 判定优先看配置：写在 VLM_MODEL 里的就是视觉模型 —— 换供应商时模型名可能不带 vl
+// （glm-4v-flash、qwen2.5-vl 都算视觉，DeepSeek 文本模型不算），靠正则硬猜容易误判。
+// 不可用时调用方应降级为纯文本。
 export function canUseVision(model: string): boolean {
   if (!hasModelKey(model)) return false;
   if (providerOf(model) !== 'dashscope') return false;
-  return /vl|vision/i.test(model);
+  const name = model.trim().toLowerCase();
+  const configured = process.env.VLM_MODEL?.trim().toLowerCase();
+  if (configured && name === configured) return true;
+  return /vl|vision|-4v|omni|gpt-4o|gemini/i.test(name);
 }
 
 // 惰性单例（按通道各一个），避免每次调用重复实例化
