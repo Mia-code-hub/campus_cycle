@@ -22,6 +22,8 @@ function ensureColumn(table: string, column: string, ddl: string) {
 }
 ensureColumn('users', 'letter_anonymous', 'letter_anonymous INTEGER NOT NULL DEFAULT 1');
 ensureColumn('letters', 'source', "source TEXT NOT NULL DEFAULT 'ai'");
+// 向量来源模型：换 embedding 模型后旧向量不能和新向量比余弦，靠这一列判定失效
+ensureColumn('items', 'embedding_model', 'embedding_model TEXT');
 
 const rows = db
   .prepare(

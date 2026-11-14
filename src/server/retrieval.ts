@@ -1,5 +1,6 @@
 import { getDb } from './db';
 import { cosineSimilarity, deserializeVector } from '@/lib/ai/vector';
+import { embeddingModel } from '@/lib/ai/embed';
 import { matchLabelOf, relevanceScore, MIN_RESULT_SIMILARITY, type MatchLabel } from '@/lib/search-score';
 import { donateBoost } from './donate-boost';
 import type { ItemSummary } from './items';
@@ -30,9 +31,11 @@ export function searchItems(
   const rows = getDb()
     .prepare(
       `SELECT ${ITEM_COLUMNS}, embedding FROM items
-       WHERE status = 'listed' AND violation_flag <> 1 AND embedding IS NOT NULL`,
+       WHERE status = 'listed' AND violation_flag <> 1
+         AND embedding IS NOT NULL
+         AND embedding_model = ?`,
     )
-    .all() as EmbeddingRow[];
+    .all(embeddingModel()) as EmbeddingRow[];
 
   const hits: RankedItem[] = [];
   for (const row of rows) {

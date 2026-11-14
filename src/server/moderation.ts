@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { getDb } from './db';
-import { canUseVision, chat, hasModelKey, type ChatMessage } from '@/lib/ai/client';
+import { canUseVision, chat, hasModelKey, VISION_TIMEOUT_MS, type ChatMessage } from '@/lib/ai/client';
 import { safeParseJson } from '@/lib/ai/json';
 import { withAiLog } from '@/lib/ai/withAiLog';
 import { buildModerateLogText, buildModeratePrompt } from '@/lib/ai/prompts';
@@ -12,6 +12,7 @@ import {
   type ModerationDecision,
 } from '@/lib/ai/moderate';
 import { scanBannedTerms, type BannedHit } from '@/lib/banned-terms';
+import { fileToVisionDataUrl } from './vision-image';
 
 // 审核编排层：本地词表 + 模型判定，两条路都走完再合并（严格优先）。
 // 放在 server 侧而不是路由里，是因为发布接口和 /api/ai/moderate 必须用同一套判定，
@@ -20,12 +21,10 @@ import { scanBannedTerms, type BannedHit } from '@/lib/banned-terms';
 // 图片超过这个体积就不送模型了（转 base64 会再涨 33%），改走纯文本判定并在结果里注明
 const MAX_IMAGE_BYTES = 900_000;
 const UPLOAD_RE = /^\/uploads\/[a-f0-9-]+\.(jpg|jpeg|png|webp)$/i;
-const MIME_BY_EXT: Record<string, string> = {
-  jpg: 'image/jpeg',
-  jpeg: 'image/jpeg',
-  png: 'image/png',
-  webp: 'image/webp',
-};
+
+// 发布是阻塞路径：识图审核正常 4–9s，偶发要几十秒。
+// 与其让用户在发布按钮上干等 90 秒，不如 45 秒就退回纯文本判定——本地词表那一层始终在。
+const MODERATION_VISION_TIMEOUT_MS = Number(process.env.AI_MODERATION_VISION_TIMEOUT_MS ?? 45_000);
 
 export function moderationModels(): { text: string; vision: string } {
   return {
@@ -41,9 +40,9 @@ export async function uploadToDataUrl(imagePath: string): Promise<string> {
     const abs = resolve(process.cwd(), 'public', imagePath.replace(/^\//, ''));
     const buf = await readFile(abs);
     if (buf.byteLength === 0 || buf.byteLength > MAX_IMAGE_BYTES) return '';
-    const ext = imagePath.split('.').pop()?.toLowerCase() ?? 'jpg';
-    const mime = MIME_BY_EXT[ext] ?? 'image/jpeg';
-    return `data:${mime};base64,${buf.toString('base64')}`;
+    // 降采样后再送模型：否则 3MB 的手机原图会因为体积被直接弃图，
+    // 危险品/活体这类只能靠看的类别就退化成纯文本判定，等于漏判。
+    return await fileToVisionDataUrl(buf);
   } catch {
     return '';
   }
@@ -89,8 +88,16 @@ function runModerate(p: {
     userId: p.userId ?? null,
     refItemId: p.refItemId ?? null,
     buildPrompt: () => buildModerateLogText(prompt),
-    // 审核要稳定复现，温度压到 0
-    run: () => chat({ model: p.model, messages, maxTokens: 300, temperature: 0 }),
+    // 审核要稳定复现，温度压到 0；带图的判定同样要走视觉超时
+    run: () =>
+      chat({
+        model: p.model,
+        messages,
+        maxTokens: 300,
+        temperature: 0,
+        thinking: false,
+        timeoutMs: p.imageDataUrl ? Math.min(VISION_TIMEOUT_MS, MODERATION_VISION_TIMEOUT_MS) : undefined,
+      }),
     parse: (raw) => normalizeModerationOutput(safeParseJson(raw)),
   });
 }

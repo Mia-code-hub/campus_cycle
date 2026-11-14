@@ -255,6 +255,8 @@ export async function generateLetter(
             ],
             temperature: 0.7,
             maxTokens: 900,
+            // 感谢信有明确的字数与口吻约束（平视、不煽情），不需要长推理链
+            thinking: false,
           }),
         parse: (raw) => {
           const text = ensureSignature(normalizeLetterText(raw), ctx.donatedAt);

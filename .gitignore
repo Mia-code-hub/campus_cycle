@@ -6,7 +6,8 @@ build/
 .env
 .env.local
 .env.*.local
-.env.example
+# .env.example 要入库，README 让新同学 cp 它起步
+!.env.example
 
 
 data/*.db

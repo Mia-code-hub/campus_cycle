@@ -73,6 +73,7 @@ async function generateGuide(
         ],
         maxTokens: 300,
         temperature: 0.4,
+        thinking: false,
       }),
     parse: (raw) => normalizeGuide(raw),
   });

@@ -138,14 +138,20 @@ export async function embedItem(
 
   const vector = res.vectors[0];
   db.prepare(
-    `UPDATE items SET embedding = ?, embedded_at = datetime('now','localtime') WHERE id = ?`,
-  ).run(serializeVector(vector), itemId);
+    `UPDATE items
+        SET embedding = ?, embedding_model = ?, embedded_at = datetime('now','localtime')
+      WHERE id = ?`,
+  ).run(serializeVector(vector), embeddingModel(), itemId);
   return { ok: true, dim: vector.length };
 }
 
 // 文案变更后置空，下次访问列表时会被补算
 export function invalidateEmbedding(itemId: number): void {
-  getDb().prepare('UPDATE items SET embedding = NULL, embedded_at = NULL WHERE id = ?').run(itemId);
+  getDb()
+    .prepare(
+      'UPDATE items SET embedding = NULL, embedded_at = NULL, embedding_model = NULL WHERE id = ?',
+    )
+    .run(itemId);
 }
 
 // 串行补算：一次最多 limit 件，失败即停并进入冷却，避免模型挂掉时每次开页都猛打接口
@@ -165,10 +171,11 @@ export async function backfillMissingEmbeddings(limit = 3): Promise<number> {
       .prepare(
         `SELECT id FROM items
          WHERE status = 'listed' AND violation_flag <> 1
-           AND (embedding IS NULL OR embedded_at IS NULL)
+           AND (embedding IS NULL OR embedded_at IS NULL
+                OR embedding_model IS NULL OR embedding_model <> ?)
          ORDER BY id LIMIT ?`,
       )
-      .all(Math.max(1, limit)) as { id: number }[];
+      .all(embeddingModel(), Math.max(1, limit)) as { id: number }[];
     for (const row of rows) {
       const res = await embedItem(row.id);
       if (!res.ok) {
@@ -183,4 +190,43 @@ export async function backfillMissingEmbeddings(limit = 3): Promise<number> {
     backfillRunning = false;
   }
   return done;
+}
+
+export interface RebuildResult {
+  total: number;
+  embedded: number;
+  failed: number;
+  model: string;
+  message?: string;
+}
+
+// 换 embedding 模型后整库重算：旧向量来自另一个向量空间，和新向量比余弦是错的，
+// 所以宁可先算完再让人搜，也不要把两批向量混在一起排。
+export async function rebuildAllEmbeddings(limit = 300): Promise<RebuildResult> {
+  const model = embeddingModel();
+  if (!hasModelKey(model)) {
+    return { total: 0, embedded: 0, failed: 0, model, message: `嵌入模型 ${model} 未配置 API Key` };
+  }
+  const rows = getDb()
+    .prepare(
+      `SELECT id FROM items
+       WHERE status IN ('listed','reserved','completed')
+       ORDER BY id LIMIT ?`,
+    )
+    .all(Math.max(1, limit)) as { id: number }[];
+
+  let embedded = 0;
+  let failed = 0;
+  let firstError: string | undefined;
+  for (const row of rows) {
+    const res = await embedItem(row.id);
+    if (res.ok) embedded++;
+    else {
+      failed++;
+      firstError ??= res.message;
+      // 通道挂了就别把剩下几百件挨个打一遍
+      if (failed >= 3) break;
+    }
+  }
+  return { total: rows.length, embedded, failed, model, message: firstError };
 }

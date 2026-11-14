@@ -1,12 +1,13 @@
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/server/auth';
-import { canUseVision, chat, hasModelKey, type ChatMessage } from '@/lib/ai/client';
+import { canUseVision, chat, hasModelKey, VISION_TIMEOUT_MS, type ChatMessage } from '@/lib/ai/client';
 import { safeParseJson } from '@/lib/ai/json';
 import { withAiLog, type AiResult } from '@/lib/ai/withAiLog';
 import { buildAnalyzeLogText, buildAnalyzePrompt } from '@/lib/ai/prompts';
 import { normalizeAnalyzeOutput, type AnalyzeOutput } from '@/lib/ai/analyze';
 import { CATEGORIES, CONDITIONS } from '@/lib/constants';
 import { getAllPriceStats } from '@/server/price-stats';
+import { prepareVisionDataUrl } from '@/server/vision-image';
 import { REF_PRICE, buildPriceContext } from '@/lib/ref-price';
 
 const CATEGORY_VALUES = CATEGORIES.map((c) => c.value);
@@ -37,7 +38,16 @@ function runAnalyze(p: {
     model: p.model,
     userId: p.userId,
     buildPrompt: () => buildAnalyzeLogText(prompt),
-    run: () => chat({ model: p.model, messages, maxTokens: 800, temperature: 0.3 }),
+    // 带图的请求走视觉模型，通常 15–40s，用放宽的超时；纯文本 30s 够用
+    run: () =>
+      chat({
+        model: p.model,
+        messages,
+        maxTokens: 800,
+        temperature: 0.3,
+        thinking: false,
+        timeoutMs: p.imageDataUrl ? VISION_TIMEOUT_MS : undefined,
+      }),
     parse: (raw) =>
       normalizeAnalyzeOutput(safeParseJson(raw), CATEGORY_VALUES, CONDITION_VALUES),
   });
@@ -90,7 +100,7 @@ export async function POST(req: Request) {
         { status: 400 },
       );
     }
-    image = imageDataUrl;
+    image = await prepareVisionDataUrl(imageDataUrl);
   }
 
   const textModel = process.env.LLM_MODEL ?? 'deepseek-chat';

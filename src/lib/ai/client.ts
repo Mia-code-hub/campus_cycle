@@ -1,5 +1,5 @@
 import OpenAI from 'openai';
-import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
+import type { ChatCompletionCreateParamsNonStreaming } from 'openai/resources/chat/completions';
 
 // AI 调用统一错误：kind 区分 api_error / timeout / parse_error
 export type AiErrorKind = 'api_error' | 'timeout' | 'parse_error';
@@ -13,7 +13,10 @@ export class AiError extends Error {
   }
 }
 
-const TIMEOUT_MS = 15_000;
+// 默认超时：文本模型 3–8s 就回，30s 留足余量；
+// 识图（尤其手机原图）经常 15–40s，调用方用 timeoutMs 单独放宽，别一刀切。
+const DEFAULT_TIMEOUT_MS = Number(process.env.AI_TIMEOUT_MS ?? 30_000);
+export const VISION_TIMEOUT_MS = Number(process.env.AI_VISION_TIMEOUT_MS ?? 90_000);
 
 // 两个通道都是 OpenAI 兼容端点，按模型名前缀路由：
 //   deepseek-*  → DeepSeek 官方（只支持纯文本）
@@ -86,6 +89,15 @@ export interface ChatOptions {
   messages: ChatMessage[];
   maxTokens?: number;
   temperature?: number;
+  /** 单次调用超时，识图请传 VISION_TIMEOUT_MS */
+  timeoutMs?: number;
+  /**
+   * 思考模式开关（仅百炼 qwen3 系有效）。
+   * omni/flash 这类模型默认会先生成一长串推理 token：实测一句 30 字的话也要 164 个推理 token、2.8s，
+   * 关掉后 0.8s。我们这些场景都是「短输出、强约束 JSON」，推理链不带来质量收益，统一关掉。
+   * 传 undefined 表示用模型默认。
+   */
+  thinking?: boolean;
 }
 
 // chat：返回模型原始文本，不解析、不落库（留痕统一由 withAiLog 负责）
@@ -94,21 +106,29 @@ export async function chat({
   messages,
   maxTokens = 1024,
   temperature,
+  timeoutMs = DEFAULT_TIMEOUT_MS,
+  thinking,
 }: ChatOptions): Promise<string> {
   const conf = confOf(model);
   if (!conf.apiKey) {
     throw new AiError('api_error', `${conf.name} 通道未配置 API Key（模型 ${model}）`);
   }
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
+    const body = {
+      model,
+      messages,
+      max_tokens: maxTokens,
+      ...(temperature === undefined ? {} : { temperature }),
+      // enable_thinking 是百炼私有字段，走 DeepSeek 通道时不能带，否则会被判非法参数
+      ...(thinking === undefined || conf.name !== 'dashscope'
+        ? {}
+        : { enable_thinking: thinking }),
+    };
+    // enable_thinking 是百炼私有字段，OpenAI SDK 的类型里没有，整体转成 SDK 参数类型
     const res = await getClient(conf).chat.completions.create(
-      {
-        model,
-        messages: messages as unknown as ChatCompletionMessageParam[],
-        max_tokens: maxTokens,
-        ...(temperature === undefined ? {} : { temperature }),
-      },
+      body as unknown as ChatCompletionCreateParamsNonStreaming,
       { signal: controller.signal },
     );
     const content = res.choices?.[0]?.message?.content;
@@ -118,7 +138,7 @@ export async function chat({
     return content;
   } catch (e) {
     if (e instanceof AiError) throw e;
-    if (controller.signal.aborted) throw new AiError('timeout', `请求超时（${TIMEOUT_MS}ms）`);
+    if (controller.signal.aborted) throw new AiError('timeout', `请求超时（${timeoutMs}ms）`);
     throw new AiError('api_error', e instanceof Error ? e.message : 'AI 服务调用失败');
   } finally {
     clearTimeout(timer);
@@ -139,7 +159,7 @@ export async function embed({ model, texts, dimensions }: EmbedOptions): Promise
   }
   if (texts.length === 0) return [];
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
   try {
     const res = await getClient(conf).embeddings.create(
       { model, input: texts, dimensions },
@@ -160,7 +180,7 @@ export async function embed({ model, texts, dimensions }: EmbedOptions): Promise
     return vectors;
   } catch (e) {
     if (e instanceof AiError) throw e;
-    if (controller.signal.aborted) throw new AiError('timeout', `请求超时（${TIMEOUT_MS}ms）`);
+    if (controller.signal.aborted) throw new AiError('timeout', `请求超时（${DEFAULT_TIMEOUT_MS}ms）`);
     throw new AiError('api_error', e instanceof Error ? e.message : '嵌入服务调用失败');
   } finally {
     clearTimeout(timer);
