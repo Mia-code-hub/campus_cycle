@@ -56,3 +56,15 @@ body {
     animation: none;
   }
 }
+
+/* 感谢信信纸：米白纸底 + 极淡纸纹 + 轻微内阴影，截图与打印都不刺眼 */
+.letter-paper {
+  background-color: #fffdf7;
+  background-image: radial-gradient(rgba(74, 74, 85, 0.035) 1px, transparent 1px);
+  background-size: 20px 20px;
+  border: 1px solid rgba(74, 74, 85, 0.08);
+  border-radius: 4px;
+  box-shadow:
+    0 10px 28px rgba(74, 74, 85, 0.1),
+    inset 0 0 60px rgba(247, 178, 189, 0.06);
+}

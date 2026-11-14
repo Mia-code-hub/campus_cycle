@@ -268,3 +268,79 @@ export function buildModeratePrompt(
 export function buildModerateLogText(prompt: ModeratePrompt): string {
   return buildAnalyzeLogText(prompt as AnalyzePrompt);
 }
+
+// ——— R14 捐赠感谢信 ———
+
+const LETTER_SYSTEM = [
+  '你是「校园闲置物资循环平台」的代笔人，替收到捐赠的同学写一封给捐赠人的感谢信。',
+  '读到这封信的人刚把东西送出去：他不需要被教育，也不需要被感动到，只需要知道东西去了哪儿。',
+  '语气像同学之间说话：平实、具体、有分寸。不用「恩情」「大爱」「涌泉相报」「雪中送炭」这类词，也不用感叹号堆情绪。',
+  '不要替收信人诉苦，不要描写收信人的处境，不要出现任何身份标签。',
+  '只输出信件正文，不要标题、不要 Markdown、不要引号、不要说明你在做什么。',
+].join('\n');
+
+const LETTER_RULES = [
+  '写作要求：',
+  '1. 200-300 字（含落款），正文 2-4 段，段落之间空一行。',
+  '2. 第一行是称呼（用给出的捐赠人称呼），最后两行是落款：第一行「校园闲置物资循环平台」，第二行是交割日期（中文年月日）。',
+  '3. 只能使用下面列出的事实。禁止编造用途细节、课程名、专业、宿舍楼、金额、品牌、型号、对方说了什么。',
+  '4. 禁止出现这些词：贫困、困难、资助、低保、建档立卡、弱势、帮扶、补助、救济、寒门、特困、受助。不要暗示对方在接受施舍。',
+  '5. 也不要出现平台内部术语：帮扶生、审核、AI、模型、算法、系统匹配、工单。',
+  '6. 重点写「这件东西接下来会怎么被用」，一两句具体的想象即可，不要扩写成故事，不要写对方的家庭情况。',
+  '7. 结尾可以轻轻提一句：以后有闲置还可以再来，但不要变成号召或说教。',
+].join('\n');
+
+export interface LetterPromptContext {
+  donorNickname: string;
+  /** null = 匿名受赠人 */
+  receiverName: string | null;
+  itemTitle: string;
+  categoryText: string;
+  conditionText: string;
+  donatedAt: string;
+  weightKg: number;
+}
+
+export interface LetterPrompt {
+  system: string;
+  user: string;
+}
+
+export function buildLetterPrompt(ctx: LetterPromptContext, retry?: string): LetterPrompt {
+  const anonymous = !ctx.receiverName;
+  const identity = anonymous
+    ? [
+        '收信人署名方式：匿名。',
+        '信中不得出现任何能定位到具体个人的信息；需要自称时用「一位同学」，也不要写「我们宿舍」「我们班」「我们专业」这类可追问的细节。',
+      ]
+    : [
+        `收信人署名方式：可以署名「${ctx.receiverName}」。`,
+        '但学院、年级、家庭情况一律不写，也不要写「我们宿舍」「我们班」这类可追问的细节。',
+      ];
+
+  const user = [
+    '请写这封感谢信。以下信息全部来自平台记录，只能使用这些事实：',
+    '',
+    `- 捐赠人称呼：${ctx.donorNickname}`,
+    `- 物品：《${ctx.itemTitle}》`,
+    `- 类别：${ctx.categoryText}；成色：${ctx.conditionText}`,
+    `- 交割日期：${ctx.donatedAt}`,
+    `- 折算重量：${ctx.weightKg} kg`,
+    '',
+    ...identity,
+    '',
+    LETTER_RULES,
+    '',
+    retry ? retry : '',
+    retry ? '' : '',
+    '现在开始写，直接输出信件正文。',
+  ]
+    .filter((line, i, arr) => !(line === '' && arr[i - 1] === ''))
+    .join('\n');
+
+  return { system: LETTER_SYSTEM, user };
+}
+
+export function buildLetterLogText(prompt: LetterPrompt): string {
+  return `${prompt.system}\n\n---\n\n${prompt.user}`;
+}

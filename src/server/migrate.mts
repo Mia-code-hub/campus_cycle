@@ -12,6 +12,17 @@ const db = new Database(dbPath);
 db.pragma('journal_mode = WAL');
 db.exec(schema);
 
+// schema.sql 用的是 CREATE TABLE IF NOT EXISTS，老库不会自动多出新列。
+// 这里按 PRAGMA 检查后补列，保证「已有数据的库」和「新建的库」结构一致。
+function ensureColumn(table: string, column: string, ddl: string) {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
+  if (cols.some((c) => c.name === column)) return;
+  db.exec(`ALTER TABLE ${table} ADD COLUMN ${ddl}`);
+  console.log(`[migrate] 补列 ${table}.${column}`);
+}
+ensureColumn('users', 'letter_anonymous', 'letter_anonymous INTEGER NOT NULL DEFAULT 1');
+ensureColumn('letters', 'source', "source TEXT NOT NULL DEFAULT 'ai'");
+
 const rows = db
   .prepare(
     "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name",

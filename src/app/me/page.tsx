@@ -8,6 +8,7 @@ import {
   getMyFavorites,
   getReceivedApplications,
   getMyApplications,
+  getLetterAnonymous,
 } from '@/server/me';
 import {
   categoryLabel,
@@ -17,6 +18,7 @@ import {
 import ItemCard from '@/components/ItemCard';
 import EmptyState from '@/components/EmptyState';
 import ApplicationActions from '@/components/ApplicationActions';
+import LetterAnonymityToggle from '@/components/letters/LetterAnonymityToggle';
 
 const TABS = [
   { key: 'posted', label: '我的发布' },
@@ -89,6 +91,8 @@ async function MeContent({
         <StatCard label="我捐出的" value={stats.donated} />
         <StatCard label="我收到的" value={stats.received} />
       </div>
+
+      <LetterAnonymityToggle initial={getLetterAnonymous(user.id)} />
 
       <div className="flex gap-1 border-b border-black/5">
         {TABS.map((t) => (

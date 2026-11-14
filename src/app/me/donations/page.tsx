@@ -5,6 +5,7 @@ import { getCurrentUser } from '@/server/auth';
 import { getMyDonations } from '@/server/me';
 import { categoryLabel } from '@/lib/constants';
 import EmptyState from '@/components/EmptyState';
+import DonationLetterButton from '@/components/letters/DonationLetterButton';
 
 export default function DonationsPage() {
   return (
@@ -61,13 +62,7 @@ async function DonationsContent() {
                   </td>
                   <td className="px-4 py-3">{d.green_weight_kg} kg</td>
                   <td className="px-4 py-3">
-                    <button
-                      type="button"
-                      disabled
-                      className="cursor-not-allowed rounded-card-sm bg-panel px-3 py-1.5 text-sm text-ink-soft opacity-50"
-                    >
-                      查看感谢信
-                    </button>
+                    <DonationLetterButton donationId={d.id} letterId={d.letter_id} />
                   </td>
                 </tr>
               ))}

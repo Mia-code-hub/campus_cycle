@@ -1,7 +1,8 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, after } from 'next/server';
 import { getDb } from '@/server/db';
 import { requireUser } from '@/server/auth';
 import { greenWeightKg } from '@/lib/green-factors';
+import { ensureLetterQuietly } from '@/server/letters';
 import {
   transition,
   type ApplicationAction,
@@ -100,6 +101,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     );
   }
 
+  const created = { donationId: 0 };
   db.transaction(() => {
     db.prepare("UPDATE applications SET status = ?, updated_at = datetime('now','localtime') WHERE id = ?").run(
       next.applicationStatus,
@@ -110,11 +112,21 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     }
     // 捐赠物品完成交割 → 写捐赠台账，重量按类别系数折算
     if (action === 'complete' && item.mode === 'donate') {
-      db.prepare(
-        'INSERT INTO donations (application_id, item_id, donor_id, receiver_id, green_weight_kg) VALUES (?, ?, ?, ?, ?)',
-      ).run(app.id, item.id, item.owner_id, app.applicant_id, greenWeightKg(item.category));
+      const info = db
+        .prepare(
+          'INSERT INTO donations (application_id, item_id, donor_id, receiver_id, green_weight_kg) VALUES (?, ?, ?, ?, ?)',
+        )
+        .run(app.id, item.id, item.owner_id, app.applicant_id, greenWeightKg(item.category));
+      created.donationId = Number(info.lastInsertRowid);
     }
   })();
+
+  // 交割完成后在响应结束时生成感谢信（幂等）：写信失败绝不影响交割结果，
+  // 台账页再点一次「生成感谢信」会重试。
+  if (created.donationId > 0) {
+    const id = created.donationId;
+    after(() => ensureLetterQuietly(id));
+  }
 
   return NextResponse.json({
     ok: true,

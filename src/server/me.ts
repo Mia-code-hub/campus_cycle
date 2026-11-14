@@ -37,7 +37,9 @@ export interface DonationRow {
   item_title: string;
   category: string;
   receiver_nickname: string;
-  receiver_anonymous: number | null;
+  /** 信件里实际采用的匿名口径；还没生成信时取本人偏好；都没取到按匿名处理 */
+  receiver_anonymous: number;
+  letter_id: number | null;
 }
 
 export function getMyStats(userId: number): MyStats {
@@ -100,7 +102,9 @@ export function getMyDonations(userId: number): DonationRow[] {
   return getDb()
     .prepare(
       `SELECT d.id, d.donated_at, d.green_weight_kg, i.title AS item_title, i.category,
-              u.nickname AS receiver_nickname, l.receiver_anonymous
+              u.nickname AS receiver_nickname,
+              COALESCE(l.receiver_anonymous, u.letter_anonymous, 1) AS receiver_anonymous,
+              l.id AS letter_id
        FROM donations d
        JOIN items i ON i.id = d.item_id
        JOIN users u ON u.id = d.receiver_id
@@ -109,4 +113,12 @@ export function getMyDonations(userId: number): DonationRow[] {
        ORDER BY d.donated_at DESC, d.id DESC`,
     )
     .all(userId) as DonationRow[];
+}
+
+/** 本人是否同意在感谢信里署昵称（默认匿名） */
+export function getLetterAnonymous(userId: number): boolean {
+  const row = getDb()
+    .prepare('SELECT letter_anonymous FROM users WHERE id = ?')
+    .get(userId) as { letter_anonymous: number } | undefined;
+  return (row?.letter_anonymous ?? 1) === 1;
 }

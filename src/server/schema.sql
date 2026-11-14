@@ -11,6 +11,8 @@ CREATE TABLE IF NOT EXISTS users (
   grade           TEXT,
   role            TEXT    NOT NULL DEFAULT 'user' CHECK (role IN ('user','admin')),
   is_aid_approved INTEGER NOT NULL DEFAULT 0 CHECK (is_aid_approved IN (0,1,2,3)),
+  -- 感谢信署名偏好：默认匿名，只有本人主动开启才会在信中署昵称
+  letter_anonymous INTEGER NOT NULL DEFAULT 1 CHECK (letter_anonymous IN (0,1)),
   created_at      TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
 );
 
@@ -79,6 +81,8 @@ CREATE TABLE IF NOT EXISTS letters (
   donation_id         INTEGER NOT NULL UNIQUE REFERENCES donations(id) ON DELETE CASCADE,
   content             TEXT    NOT NULL,
   receiver_anonymous  INTEGER NOT NULL DEFAULT 1,
+  -- 生成来源：ai=模型生成；template=模型不可用时按平台模板兜底（可后续升级为 ai）
+  source              TEXT    NOT NULL DEFAULT 'ai' CHECK (source IN ('ai','template')),
   issued_at           TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
 );
 
