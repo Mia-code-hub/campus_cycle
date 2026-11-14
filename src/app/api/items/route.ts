@@ -1,8 +1,9 @@
-import { NextResponse, type NextRequest } from 'next/server';
+import { NextResponse, after, type NextRequest } from 'next/server';
 import { getDb } from '@/server/db';
 import { requireUser } from '@/server/auth';
 import { CATEGORIES, CONDITIONS, MODES } from '@/lib/constants';
 import { listItems, toNum } from '@/server/items';
+import { embedItem } from '@/lib/ai/embed';
 
 export async function GET(req: NextRequest) {
   const sp = req.nextUrl.searchParams;
@@ -151,5 +152,13 @@ export async function POST(req: Request) {
       donateTag || null,
     );
 
-  return NextResponse.json({ ok: true, id: Number(info.lastInsertRowid) });
+  const newId = Number(info.lastInsertRowid);
+
+  // 向量化放在响应之后跑：发布不等 AI，模型挂了也不影响物品上架，
+  // 列表页的补算逻辑会把缺向量的记录补上。
+  after(async () => {
+    await embedItem(newId, { userId: user.id });
+  });
+
+  return NextResponse.json({ ok: true, id: newId });
 }

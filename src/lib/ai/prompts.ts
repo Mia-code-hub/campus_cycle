@@ -126,6 +126,55 @@ export function buildAnalyzePrompt(
   return { system: SYSTEM_BASE, user };
 }
 
+// ——— R12 语义检索导购语 ———
+
+const SEARCH_SYSTEM = [
+  '你是「校园闲置物资循环平台」的导购助手。',
+  '你只能依据用户消息里列出的候选物品作答：不得编造候选里没有的物品、品牌、型号、数量、成色。',
+  '不得承诺库存，不得承诺或改动价格，不得替卖家承诺发货时间与售后。',
+  '语气平实、面向同学，不使用营销夸张词。',
+  '只输出 60-100 字的连续中文：不要分点、不要换行、不要 Markdown、不要引号、不要「好的」这类开场白。',
+  '不要把候选行的字段原样照抄或用分隔符罗列，用自己的话把信息揉进句子里。',
+].join('\n');
+
+export interface SearchGuideItem {
+  title: string;
+  categoryText: string;
+  condition: string | null;
+  modeText: string;
+  priceText: string;
+}
+
+export interface SearchGuidePrompt {
+  system: string;
+  user: string;
+}
+
+// 候选物品的字段由调用方预先格式化好，保证 prompt 里出现的每个事实都来自数据库
+export function buildSearchGuidePrompt(
+  query: string,
+  items: SearchGuideItem[],
+): SearchGuidePrompt {
+  const lines = items.map(
+    (it, i) =>
+      `${i + 1}. 《${it.title}》｜${it.categoryText}｜${it.condition ?? '成色未标注'}｜${it.modeText}｜${it.priceText}`,
+  );
+  const user = [
+    `用户搜索需求：「${query}」`,
+    '',
+    `候选物品（仅下列 ${items.length} 件，按相关度从高到低排序，第 1 件最相关）：`,
+    ...lines,
+    '',
+    '请写一段导购语：先点出最贴合需求的那件并说明为什么合适（成色、是否免费、是否成套），再提一句其他候选的差异，最后给一句校内自提的实用提醒。',
+    '提到具体物品时用它的标题，不要用「第 1 件」「上面第 2 个」这类序号。',
+  ].join('\n');
+  return { system: SEARCH_SYSTEM, user };
+}
+
+export function buildSearchLogText(prompt: SearchGuidePrompt): string {
+  return `${prompt.system}\n\n---\n\n${prompt.user}`;
+}
+
 // 落库用的 prompt 快照：把 dataURL 换成体积说明，避免 ai_call_logs 存几 MB 的 base64
 export function buildAnalyzeLogText(prompt: AnalyzePrompt): string {
   const body = prompt.user

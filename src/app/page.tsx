@@ -1,5 +1,7 @@
 import Link from 'next/link';
+import { after } from 'next/server';
 import { listItems, toNum } from '@/server/items';
+import { backfillMissingEmbeddings } from '@/lib/ai/embed';
 import ItemCard from '@/components/ItemCard';
 import FilterBar from '@/components/FilterBar';
 import EmptyState from '@/components/EmptyState';
@@ -67,6 +69,11 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
   });
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const hasMore = page < totalPages;
+
+  // 缺向量的在架物品在响应结束后串行补算，用户等的是列表、不是 embedding
+  after(async () => {
+    await backfillMissingEmbeddings(3);
+  });
 
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-6 px-6 py-8">

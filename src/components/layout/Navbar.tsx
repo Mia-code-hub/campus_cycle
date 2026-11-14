@@ -14,6 +14,18 @@ export default async function Navbar() {
         </Link>
 
         <div className="flex items-center gap-1 text-sm">
+          <Link
+            href="/search"
+            className="rounded-card-sm px-3 py-1.5 text-ink transition hover:bg-cream"
+          >
+            找物
+          </Link>
+          <Link
+            href="/donate"
+            className="rounded-card-sm px-3 py-1.5 text-ink transition hover:bg-cream"
+          >
+            公益
+          </Link>
           {user ? (
             <>
               <span className="px-2 text-ink-soft">你好，{user.nickname}</span>

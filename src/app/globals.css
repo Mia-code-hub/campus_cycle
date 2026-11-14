@@ -34,3 +34,25 @@ body {
   color: var(--color-ink);
   font-family: var(--font-sans);
 }
+
+/* AI 导购语打字机：逐字给出延迟，纯 CSS 播放，无需 JS，SSR 内容完整 */
+@keyframes guide-reveal {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.guide-char {
+  opacity: 0;
+  animation: guide-reveal 90ms ease-out forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .guide-char {
+    opacity: 1;
+    animation: none;
+  }
+}

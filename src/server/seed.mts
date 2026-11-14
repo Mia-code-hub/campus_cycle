@@ -91,6 +91,8 @@ const ITEMS: SeedItem[] = [
   { owner: 'grad1', title: '高等数学（同济版）上下册', category: 'textbook', condition: '9成新', mode: 'sale', price: 15, status: 'listed' },
   { owner: 'grad1', title: '大学英语四级词汇书', category: 'textbook', condition: '8成新', mode: 'sale', price: 5, status: 'listed' },
   { owner: 'grad1', title: '数据结构（C语言版）', category: 'textbook', condition: '95新', mode: 'sale', price: 12, status: 'listed' },
+  // 捐赠教材：R12 验收要用「帮扶生搜捐赠教材时 donate 排前」，所以同类目必须有一件捐赠
+  { owner: 'grad2', title: '高等数学 上册（有笔记）', category: 'textbook', condition: '8成新', mode: 'donate', price: 0, status: 'listed' },
   { owner: 'grad1', title: '冬季棉被 2 斤', category: 'bedding', condition: '可用', mode: 'donate', price: 0, status: 'listed' },
   { owner: 'grad1', title: '护眼台灯', category: 'appliance', condition: '9成新', mode: 'sale', price: 18, status: 'listed' },
   { owner: 'grad1', title: '收纳盒三件套', category: 'daily', condition: '可用', mode: 'donate', price: 0, status: 'completed', applicant: 'fresh2' },
