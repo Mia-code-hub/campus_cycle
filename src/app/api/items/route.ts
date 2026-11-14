@@ -95,15 +95,36 @@ export async function POST(req: Request) {
     );
   }
 
-  const title = desc.length > 30 ? desc.slice(0, 30) : desc;
+  // AI 辅助字段（可选，来自 /api/ai/analyze 的回填）
+  const aiTitle = typeof body.title === 'string' ? body.title.trim() : '';
+  const aiDesc = typeof body.aiDesc === 'string' ? body.aiDesc.trim() : '';
+  const aiTags = Array.isArray(body.aiTags)
+    ? body.aiTags.filter((t): t is string => typeof t === 'string').map((t) => t.trim()).filter(Boolean).slice(0, 6)
+    : [];
+  const aiEditedRaw = Number(body.ai_edited);
+  const aiEdited = [0, 1, 2].includes(aiEditedRaw) ? aiEditedRaw : 0;
+
+  const title = (aiTitle || (desc.length > 30 ? desc.slice(0, 30) : desc)).slice(0, 50);
 
   const info = getDb()
     .prepare(
       `INSERT INTO items
-        (owner_id, title, raw_desc, category, condition_level, mode, price, image_path, ai_edited)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)`,
+        (owner_id, title, raw_desc, ai_desc, category, condition_level, mode, price, image_path, ai_tags, ai_edited)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
-    .run(user.id, title, desc, category, conditionLevel, mode, price, imagePath || null);
+    .run(
+      user.id,
+      title,
+      desc,
+      aiDesc || null,
+      category,
+      conditionLevel,
+      mode,
+      price,
+      imagePath || null,
+      aiTags.length ? JSON.stringify(aiTags) : null,
+      aiEdited,
+    );
 
   return NextResponse.json({ ok: true, id: Number(info.lastInsertRowid) });
 }

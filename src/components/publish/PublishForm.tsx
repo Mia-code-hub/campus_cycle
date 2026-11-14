@@ -9,19 +9,126 @@ const MAX_SIZE = 5 * 1024 * 1024;
 
 const STEPS = ['图片与描述', '类别成色价格', '转售或捐赠'];
 
+type AiField = 'category' | 'condition' | 'title' | 'aiDesc' | 'tags';
+
+interface AiFill {
+  category: string;
+  condition: string;
+  title: string;
+  aiDesc: string;
+  tags: string[];
+}
+
+// 把图压到最长边 1024px、jpeg 质量 0.8，再转 dataURL，减少 token 与耗时
+function compressToDataUrl(file: File): Promise<string | null> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const max = 1024;
+      let w = img.width;
+      let h = img.height;
+      if (w > max || h > max) {
+        if (w >= h) {
+          h = Math.round((h * max) / w);
+          w = max;
+        } else {
+          w = Math.round((w * max) / h);
+          h = max;
+        }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        resolve(null);
+        return;
+      }
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 0, w, h);
+      ctx.drawImage(img, 0, 0, w, h);
+      resolve(canvas.toDataURL('image/jpeg', 0.8));
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      resolve(null);
+    };
+    img.src = url;
+  });
+}
+
+function FieldBadge({ state }: { state: 'AI' | '已修改' | null }) {
+  if (!state) return null;
+  return (
+    <span
+      className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
+        state === 'AI' ? 'bg-lilac/40 text-ink' : 'bg-sky/40 text-ink'
+      }`}
+    >
+      {state}
+    </span>
+  );
+}
+
 export default function PublishForm() {
   const [step, setStep] = useState(1);
   const [desc, setDesc] = useState('');
   const [imagePath, setImagePath] = useState('');
   const [imagePreview, setImagePreview] = useState('');
+  const [sourceFile, setSourceFile] = useState<File | null>(null);
   const [category, setCategory] = useState('');
   const [condition, setCondition] = useState('');
+  const [title, setTitle] = useState('');
+  const [aiDesc, setAiDesc] = useState('');
+  const [tags, setTags] = useState<string[]>([]);
   const [price, setPrice] = useState('');
   const [mode, setMode] = useState<'sale' | 'donate' | ''>('');
   const [error, setError] = useState('');
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiNotice, setAiNotice] = useState('');
+  const [aiFill, setAiFill] = useState<AiFill | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  function fieldWasAiFilled(field: AiField): boolean {
+    if (!aiFill) return false;
+    switch (field) {
+      case 'category':
+        return !!aiFill.category;
+      case 'condition':
+        return !!aiFill.condition;
+      case 'title':
+        return !!aiFill.title;
+      case 'aiDesc':
+        return !!aiFill.aiDesc;
+      case 'tags':
+        return aiFill.tags.length > 0;
+    }
+  }
+
+  function fieldWasEdited(field: AiField): boolean {
+    if (!aiFill) return false;
+    switch (field) {
+      case 'category':
+        return category !== aiFill.category;
+      case 'condition':
+        return condition !== aiFill.condition;
+      case 'title':
+        return title !== aiFill.title;
+      case 'aiDesc':
+        return aiDesc !== aiFill.aiDesc;
+      case 'tags':
+        return tags.join(',') !== aiFill.tags.join(',');
+    }
+  }
+
+  function badgeState(field: AiField): 'AI' | '已修改' | null {
+    if (!fieldWasAiFilled(field)) return null;
+    return fieldWasEdited(field) ? '已修改' : 'AI';
+  }
 
   async function onFileChange(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -49,16 +156,57 @@ export default function PublishForm() {
         setError(data?.message ?? '上传失败，请重试');
         setImagePreview('');
         setImagePath('');
+        setSourceFile(null);
         return;
       }
       setImagePath(data.path);
+      setSourceFile(file);
+      setAiFill(null); // 换图后旧 AI 结果作废
     } catch {
       setError('上传失败，请检查网络');
       setImagePreview('');
       setImagePath('');
+      setSourceFile(null);
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  }
+
+  async function onAiFill() {
+    if (aiLoading || !desc.trim()) return;
+    setAiNotice('');
+    setAiLoading(true);
+    try {
+      let dataUrl = '';
+      if (sourceFile) dataUrl = (await compressToDataUrl(sourceFile)) ?? '';
+      const res = await fetch('/api/ai/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ desc: desc.trim(), imageDataUrl: dataUrl }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!data?.ok || !data?.data) {
+        setAiNotice('AI 暂不可用，已保留手动填写');
+        return;
+      }
+      const d = data.data;
+      setCategory(d.category);
+      setCondition(d.conditionLevel);
+      setTitle(d.title ?? '');
+      setAiDesc(d.aiDesc ?? '');
+      setTags(d.tags ?? []);
+      setAiFill({
+        category: d.category,
+        condition: d.conditionLevel,
+        title: d.title ?? '',
+        aiDesc: d.aiDesc ?? '',
+        tags: d.tags ?? [],
+      });
+    } catch {
+      setAiNotice('AI 暂不可用，已保留手动填写');
+    } finally {
+      setAiLoading(false);
     }
   }
 
@@ -69,6 +217,12 @@ export default function PublishForm() {
     if (submitting) return;
     setError('');
     setSubmitting(true);
+    const anyEdited = aiFill
+      ? (['category', 'condition', 'title', 'aiDesc', 'tags'] as AiField[]).some((f) =>
+          fieldWasEdited(f),
+        )
+      : false;
+    const aiEdited = !aiFill ? 0 : anyEdited ? 2 : 1;
     try {
       const res = await fetch('/api/items', {
         method: 'POST',
@@ -80,6 +234,10 @@ export default function PublishForm() {
           mode,
           price: mode === 'sale' ? Number(price) : 0,
           imagePath,
+          title,
+          aiDesc,
+          aiTags: tags,
+          ai_edited: aiEdited,
         }),
       });
       const data = await res.json().catch(() => null);
@@ -166,22 +324,35 @@ export default function PublishForm() {
 
         {step === 2 && (
           <div className="flex flex-col gap-4">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
-                disabled
-                title="下一轮接入"
-                className="cursor-not-allowed rounded-card bg-lilac/40 px-4 py-2 text-sm font-medium text-ink opacity-50"
+                onClick={onAiFill}
+                disabled={aiLoading || !desc.trim()}
+                className={`rounded-card px-4 py-2 text-sm font-medium transition ${
+                  aiLoading
+                    ? 'cursor-wait bg-lilac/40 text-ink'
+                    : 'bg-lilac/40 text-ink hover:bg-lilac/60 disabled:opacity-50'
+                }`}
               >
-                AI 帮我完善
+                {aiLoading ? 'AI 正在识别…' : 'AI 帮我完善'}
               </button>
-              <span className="text-xs text-ink-soft">下一轮接入</span>
+              {aiNotice && <span className="text-xs text-ink-soft">{aiNotice}</span>}
             </div>
-            {/* AI 识别结果骨架屏占位：R10 接入时在此渲染 */}
-            <div className="hidden" data-ai-skeleton />
+
+            {aiLoading && (
+              <div className="flex flex-col gap-3 rounded-card-lg bg-panel p-4" aria-busy="true">
+                <div className="h-8 w-1/2 animate-pulse rounded-card bg-cream" />
+                <div className="h-8 w-2/3 animate-pulse rounded-card bg-cream" />
+                <div className="h-20 w-full animate-pulse rounded-card bg-cream" />
+              </div>
+            )}
 
             <div className="flex flex-col gap-2">
-              <span className="text-sm text-ink-soft">类别</span>
+              <span className="flex items-center gap-1.5 text-sm text-ink-soft">
+                类别
+                <FieldBadge state={badgeState('category')} />
+              </span>
               <div className="flex flex-wrap gap-2">
                 {CATEGORIES.map((c) => (
                   <button
@@ -201,7 +372,10 @@ export default function PublishForm() {
             </div>
 
             <div className="flex flex-col gap-2">
-              <span className="text-sm text-ink-soft">成色</span>
+              <span className="flex items-center gap-1.5 text-sm text-ink-soft">
+                成色
+                <FieldBadge state={badgeState('condition')} />
+              </span>
               <div className="flex flex-wrap gap-2">
                 {CONDITIONS.map((c) => (
                   <button
@@ -219,6 +393,50 @@ export default function PublishForm() {
                 ))}
               </div>
             </div>
+
+            <label className="flex flex-col gap-1.5">
+              <span className="flex items-center gap-1.5 text-sm text-ink-soft">
+                标题
+                <FieldBadge state={badgeState('title')} />
+              </span>
+              <input
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                maxLength={50}
+                placeholder="AI 可自动生成，也可手动填写"
+                className="rounded-card-sm border border-black/10 bg-panel px-3 py-2 text-sm outline-none focus:border-blush-deep"
+              />
+            </label>
+
+            <label className="flex flex-col gap-1.5">
+              <span className="flex items-center gap-1.5 text-sm text-ink-soft">
+                转让文案
+                <FieldBadge state={badgeState('aiDesc')} />
+              </span>
+              <textarea
+                value={aiDesc}
+                onChange={(e) => setAiDesc(e.target.value)}
+                rows={3}
+                maxLength={200}
+                placeholder="AI 可自动生成，也可手动填写"
+                className="rounded-card-sm border border-black/10 bg-panel px-3 py-2 text-sm outline-none focus:border-blush-deep"
+              />
+            </label>
+
+            <label className="flex flex-col gap-1.5">
+              <span className="flex items-center gap-1.5 text-sm text-ink-soft">
+                标签
+                <FieldBadge state={badgeState('tags')} />
+              </span>
+              <input
+                type="text"
+                value={tags.join('、')}
+                onChange={(e) => setTags(e.target.value.split(/[，,、]/).filter(Boolean))}
+                placeholder="例：教材、数学、九成新（用顿号分隔）"
+                className="rounded-card-sm border border-black/10 bg-panel px-3 py-2 text-sm outline-none focus:border-blush-deep"
+              />
+            </label>
 
             <label className="flex flex-col gap-1.5">
               <span className="text-sm text-ink-soft">转售价（元）</span>
@@ -332,8 +550,18 @@ export default function PublishForm() {
             )}
           </div>
           <h3 className="mt-2 line-clamp-2 text-base font-medium">
-            {desc.trim() || '一句话描述…'}
+            {title || desc.trim() || '一句话描述…'}
           </h3>
+          {aiDesc && <p className="mt-1 line-clamp-3 text-xs text-ink-soft">{aiDesc}</p>}
+          {tags.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {tags.map((t) => (
+                <span key={t} className="rounded-full bg-lilac/30 px-2 py-0.5 text-[10px] text-ink">
+                  {t}
+                </span>
+              ))}
+            </div>
+          )}
           <div className="mt-2 flex items-center justify-between text-sm">
             <span className="font-semibold">
               {mode === 'donate' ? '免费' : price ? `¥${price}` : '¥—'}
