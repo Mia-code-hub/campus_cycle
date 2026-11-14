@@ -1,0 +1,124 @@
+import Link from 'next/link';
+import { notFound } from 'next/navigation';
+import { getItemDetail } from '@/server/items';
+import { categoryLabel, modeLabel } from '@/lib/constants';
+
+export const instant = false;
+
+function parseTags(s: string | null): string[] {
+  if (!s) return [];
+  try {
+    const arr = JSON.parse(s);
+    return Array.isArray(arr) ? arr.filter((t): t is string => typeof t === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+export default async function ItemDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  const idNum = Number(id);
+  const item = Number.isSafeInteger(idNum) && idNum > 0 ? getItemDetail(idNum) : null;
+  if (!item) notFound();
+
+  const desc = item.ai_desc || item.raw_desc || '';
+  const tags = parseTags(item.ai_tags);
+  const isDonate = item.mode === 'donate';
+
+  return (
+    <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-6 px-6 py-8">
+      <Link href="/" className="w-fit text-sm text-ink-soft transition hover:text-ink">
+        ← 返回列表
+      </Link>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <div className="overflow-hidden rounded-card-lg bg-panel shadow-soft">
+          {item.image_path ? (
+            <img
+              src={item.image_path}
+              alt={item.title}
+              className="aspect-[4/3] w-full object-cover"
+            />
+          ) : (
+            <div className="flex aspect-[4/3] w-full items-center justify-center text-ink-soft">
+              暂无图片
+            </div>
+          )}
+        </div>
+
+        <div className="flex flex-col gap-4 rounded-card-lg bg-panel p-6 shadow-soft">
+          <div className="flex flex-wrap items-center gap-2">
+            <span
+              className={`rounded-full px-2.5 py-0.5 text-xs font-medium text-ink ${
+                isDonate ? 'bg-blush' : 'bg-sky'
+              }`}
+            >
+              {modeLabel(item.mode)}
+            </span>
+            <span className="rounded-full bg-panel px-2.5 py-0.5 text-xs text-ink-soft">
+              {categoryLabel(item.category)}
+            </span>
+            {item.condition_level && (
+              <span className="rounded-full bg-panel px-2.5 py-0.5 text-xs text-ink-soft">
+                {item.condition_level}
+              </span>
+            )}
+          </div>
+
+          <h1 className="text-2xl font-semibold tracking-tight">{item.title}</h1>
+          <p className="text-3xl font-semibold text-ink">{isDonate ? '免费' : `¥${item.price}`}</p>
+
+          {desc && <p className="text-sm leading-7 text-ink-soft">{desc}</p>}
+
+          {tags.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {tags.map((t) => (
+                <span key={t} className="rounded-full bg-lilac/30 px-2.5 py-0.5 text-xs text-ink">
+                  {t}
+                </span>
+              ))}
+            </div>
+          )}
+
+          <div className="mt-auto border-t border-black/5 pt-4 text-sm text-ink-soft">
+            发起人：{item.owner_nickname}
+            {item.owner_college ? ` · ${item.owner_college}` : ''}
+            <span className="ml-3">{item.view_count} 次浏览</span>
+          </div>
+
+          <div className="flex gap-3">
+            <button
+              type="button"
+              className="flex-1 rounded-card bg-blush py-3 text-sm font-medium text-ink transition hover:bg-blush-deep"
+            >
+              {isDonate ? '申请领取' : '我想要'}
+            </button>
+            <button
+              type="button"
+              aria-label="收藏"
+              className="rounded-card bg-panel px-5 py-3 text-ink-soft transition hover:text-blush-deep"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                width="18"
+                height="18"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </main>
+  );
+}

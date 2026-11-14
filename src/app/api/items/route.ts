@@ -1,18 +1,22 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 import { getDb } from '@/server/db';
 import { requireUser } from '@/server/auth';
+import { CATEGORIES, CONDITIONS, MODES } from '@/lib/constants';
+import { listItems, toNum } from '@/server/items';
 
-const CATEGORIES = [
-  'textbook',
-  'bedding',
-  'stationery',
-  'appliance',
-  'daily',
-  'clothing',
-  'other',
-] as const;
-const CONDITIONS = ['95新', '9成新', '8成新', '可用'] as const;
-const MODES = ['sale', 'donate'] as const;
+export async function GET(req: NextRequest) {
+  const sp = req.nextUrl.searchParams;
+  const { total, items } = listItems({
+    category: sp.get('category') ?? undefined,
+    mode: sp.get('mode') ?? undefined,
+    condition: sp.get('condition') ?? undefined,
+    minPrice: toNum(sp.get('minPrice')),
+    maxPrice: toNum(sp.get('maxPrice')),
+    page: toNum(sp.get('page')),
+    pageSize: toNum(sp.get('pageSize')),
+  });
+  return NextResponse.json({ ok: true, total, items });
+}
 
 export async function POST(req: Request) {
   const user = await requireUser();
@@ -52,19 +56,19 @@ export async function POST(req: Request) {
       { status: 400 },
     );
   }
-  if (!(CATEGORIES as readonly string[]).includes(category)) {
+  if (!CATEGORIES.some((c) => c.value === category)) {
     return NextResponse.json(
       { ok: false, code: 'INVALID_CATEGORY', message: '类别不合法' },
       { status: 400 },
     );
   }
-  if (!(CONDITIONS as readonly string[]).includes(conditionLevel)) {
+  if (!CONDITIONS.includes(conditionLevel)) {
     return NextResponse.json(
       { ok: false, code: 'INVALID_CONDITION', message: '成色不合法' },
       { status: 400 },
     );
   }
-  if (!(MODES as readonly string[]).includes(mode)) {
+  if (!MODES.includes(mode)) {
     return NextResponse.json(
       { ok: false, code: 'INVALID_MODE', message: '流转方式不合法' },
       { status: 400 },
@@ -91,7 +95,7 @@ export async function POST(req: Request) {
     );
   }
 
-  const title = desc.length > 30 ? `${desc.slice(0, 30)}` : desc;
+  const title = desc.length > 30 ? desc.slice(0, 30) : desc;
 
   const info = getDb()
     .prepare(
@@ -99,16 +103,7 @@ export async function POST(req: Request) {
         (owner_id, title, raw_desc, category, condition_level, mode, price, image_path, ai_edited)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)`,
     )
-    .run(
-      user.id,
-      title,
-      desc,
-      category,
-      conditionLevel,
-      mode,
-      price,
-      imagePath || null,
-    );
+    .run(user.id, title, desc, category, conditionLevel, mode, price, imagePath || null);
 
   return NextResponse.json({ ok: true, id: Number(info.lastInsertRowid) });
 }

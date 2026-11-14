@@ -1,18 +1,7 @@
 'use client';
 
 import { useRef, useState, type ChangeEvent, type FormEvent } from 'react';
-
-const CATEGORIES = [
-  { value: 'textbook', label: '教材' },
-  { value: 'bedding', label: '被褥' },
-  { value: 'stationery', label: '文具' },
-  { value: 'appliance', label: '小家电' },
-  { value: 'daily', label: '日用品' },
-  { value: 'clothing', label: '衣物' },
-  { value: 'other', label: '其他' },
-] as const;
-
-const CONDITIONS = ['95新', '9成新', '8成新', '可用'] as const;
+import { CATEGORIES, CONDITIONS } from '@/lib/constants';
 
 const ALLOWED_EXT = ['jpg', 'jpeg', 'png', 'webp'];
 const ALLOWED_MIME = ['image/jpeg', 'image/png', 'image/webp'];
