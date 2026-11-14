@@ -30,12 +30,20 @@ export default async function Navbar() {
             <>
               <span className="px-2 text-ink-soft">你好，{user.nickname}</span>
               {user.role === 'admin' && (
-                <Link
-                  href="/admin/violations"
-                  className="rounded-card-sm px-3 py-1.5 text-ink transition hover:bg-cream"
-                >
-                  复核
-                </Link>
+                <>
+                  <Link
+                    href="/admin/violations"
+                    className="rounded-card-sm px-3 py-1.5 text-ink transition hover:bg-cream"
+                  >
+                    复核
+                  </Link>
+                  <Link
+                    href="/admin/ai-logs"
+                    className="rounded-card-sm px-3 py-1.5 text-ink transition hover:bg-cream"
+                  >
+                    留痕
+                  </Link>
+                </>
               )}
               <Link
                 href="/me"

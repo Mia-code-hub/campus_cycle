@@ -10,6 +10,7 @@
     "lint": "eslint",
     "migrate": "node src/server/migrate.mts",
     "seed": "node src/server/seed.mts",
+    "export:prompts": "node scripts/export-prompts.mjs",
     "test": "node --test tests/*.test.ts"
   },
   "dependencies": {

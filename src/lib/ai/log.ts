@@ -1,15 +1,9 @@
 import { getDb } from '@/server/db';
+import { AI_FEATURE_ORDER } from '@/lib/ai-log-view';
 
-// AI 调用留痕：比赛要交的「Prompt 历史快照」直接来自 ai_call_logs 表
-export const AI_FEATURES = [
-  'analyze',
-  'search',
-  'moderate',
-  'letter',
-  'report',
-  'embed',
-  'health',
-] as const;
+// AI 调用留痕：比赛要交的「Prompt 历史快照」直接来自 ai_call_logs 表。
+// 枚举与展示顺序只在 ai-log-view.ts 里定义一次，这里复用，避免两边漂移。
+export const AI_FEATURES = AI_FEATURE_ORDER;
 export type AiFeature = (typeof AI_FEATURES)[number];
 export type AiStatus = 'ok' | 'timeout' | 'parse_error' | 'api_error';
 
