@@ -108,7 +108,7 @@ CREATE TABLE IF NOT EXISTS aid_applications (
 CREATE TABLE IF NOT EXISTS ai_call_logs (
   id            INTEGER PRIMARY KEY AUTOINCREMENT,
   feature       TEXT    NOT NULL CHECK (feature IN
-                  ('analyze','search','moderate','letter','report','embed')),
+                  ('analyze','search','moderate','letter','report','embed','health')),
   model         TEXT    NOT NULL,
   user_id       INTEGER REFERENCES users(id) ON DELETE SET NULL,
   ref_item_id   INTEGER REFERENCES items(id) ON DELETE SET NULL,
