@@ -112,6 +112,10 @@ const ITEMS: SeedItem[] = [
   { owner: 'grad3', title: '脸盆 + 水桶', category: 'daily', condition: '可用', mode: 'donate', price: 0, status: 'completed', applicant: 'fresh3' },
   { owner: 'grad3', title: '行李箱（24 寸）', category: 'other', condition: '8成新', mode: 'sale', price: 40, status: 'listed' },
   { owner: 'grad3', title: '吹风机', category: 'appliance', condition: '9成新', mode: 'donate', price: 0, status: 'completed', applicant: 'fresh1' },
+  // 教材类的历史成交样本：让 R11 的「同类目成交聚合」有数据可算（>=3 件）
+  { owner: 'grad2', title: '高等数学（上册）', category: 'textbook', condition: '8成新', mode: 'sale', price: 10, status: 'completed', applicant: 'fresh2' },
+  { owner: 'grad3', title: '大学物理实验教程', category: 'textbook', condition: '9成新', mode: 'sale', price: 13, status: 'completed', applicant: 'fresh3' },
+  { owner: 'grad1', title: '中国近现代史纲要', category: 'textbook', condition: '可用', mode: 'sale', price: 9, status: 'completed', applicant: 'fresh1' },
 ];
 
 const itemId: Record<string, number> = {};
