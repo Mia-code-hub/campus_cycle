@@ -2,9 +2,11 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getCurrentUser } from '@/server/auth';
 import { getItemDetail, isFavorited } from '@/server/items';
+import { getConversationPeer } from '@/server/messages';
 import { categoryLabel, modeLabel } from '@/lib/constants';
 import FavoriteButton from '@/components/FavoriteButton';
 import ApplyButton from '@/components/ApplyButton';
+import MessageDrawer from '@/components/MessageDrawer';
 
 export const instant = false;
 
@@ -34,6 +36,7 @@ export default async function ItemDetailPage({
   const user = await getCurrentUser();
   const favorited = user ? isFavorited(user.id, item.id) : false;
   const isOwner = user ? user.id === item.owner_id : false;
+  const peerId = user ? getConversationPeer(item.id, user.id) : null;
 
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-6 px-6 py-8">
@@ -100,6 +103,8 @@ export default async function ItemDetailPage({
             <ApplyButton itemId={item.id} mode={item.mode} isOwner={isOwner} />
             <FavoriteButton itemId={item.id} initialFavorited={favorited} />
           </div>
+
+          {peerId != null && <MessageDrawer itemId={item.id} />}
         </div>
       </div>
     </main>
