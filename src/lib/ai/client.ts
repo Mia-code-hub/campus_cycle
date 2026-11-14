@@ -140,6 +140,14 @@ export async function embed({ model, texts, dimensions }: EmbedOptions): Promise
       { model, input: texts, dimensions },
       { signal: controller.signal },
     );
+    // 少数异常响应会带 200 但 body 是错误结构，直接 .map 会抛 "Cannot read properties of undefined"，
+    // 留痕里只剩一句 JS 报错，排查时看不出是账号还是参数问题。
+    if (!res || !Array.isArray(res.data)) {
+      throw new AiError(
+        'parse_error',
+        `嵌入接口返回结构异常：${JSON.stringify(res ?? null).slice(0, 300)}`,
+      );
+    }
     const vectors = res.data.map((d) => d.embedding);
     if (vectors.length !== texts.length || vectors.some((v) => !Array.isArray(v) || v.length === 0)) {
       throw new AiError('parse_error', '嵌入返回条数与入参不一致');
