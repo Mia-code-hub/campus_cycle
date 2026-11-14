@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import "./globals.css";
+import Navbar from "@/components/layout/Navbar";
 
 export const metadata: Metadata = {
   title: "校园闲置物资循环 AI 平台",
@@ -10,7 +12,12 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="zh-CN" className="h-full antialiased">
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <Suspense fallback={<div className="h-14 border-b border-black/5 bg-panel" />}>
+          <Navbar />
+        </Suspense>
+        {children}
+      </body>
     </html>
   );
 }
