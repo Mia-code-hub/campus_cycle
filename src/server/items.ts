@@ -37,6 +37,8 @@ export interface ItemDetail {
   image_path: string | null;
   donate_tag: string | null;
   status: string;
+  violation_flag: number;
+  violation_reason: string | null;
   view_count: number;
   created_at: string;
   owner_nickname: string;
@@ -49,10 +51,12 @@ export function toNum(v: string | undefined | null): number | undefined {
   return Number.isFinite(n) ? n : undefined;
 }
 
-// 只出在架物品（status='listed' 且 violation_flag=0），字段名固定、值全参数化
+// 只出在架物品（status='listed' 且未被人工判定违规），字段名固定、值全参数化
+// violation_flag=2 是「AI 审核不可用、放行待复核」，仍然可见：放行的意思就是能正常流转，
+// 只是同时进管理员队列，等人工看过再决定要不要下架。
 export function listItems(filter: ItemListFilter): { total: number; items: ItemSummary[] } {
   const db = getDb();
-  const where = ["status = 'listed'", 'violation_flag = 0'];
+  const where = ["status = 'listed'", 'violation_flag <> 1'];
   const args: (string | number)[] = [];
 
   if (filter.category && CATEGORIES.some((c) => c.value === filter.category)) {
@@ -105,7 +109,8 @@ export function getItemDetail(id: number): ItemDetail | null {
   const row = db
     .prepare(
       `SELECT i.id, i.owner_id, i.title, i.raw_desc, i.ai_desc, i.category, i.condition_level,
-              i.mode, i.price, i.ai_tags, i.image_path, i.donate_tag, i.status, i.view_count,
+              i.mode, i.price, i.ai_tags, i.image_path, i.donate_tag, i.status,
+              i.violation_flag, i.violation_reason, i.view_count,
               i.created_at, u.nickname AS owner_nickname, u.college AS owner_college
        FROM items i
        JOIN users u ON u.id = i.owner_id

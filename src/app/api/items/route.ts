@@ -4,6 +4,9 @@ import { requireUser } from '@/server/auth';
 import { CATEGORIES, CONDITIONS, MODES } from '@/lib/constants';
 import { listItems, toNum } from '@/server/items';
 import { embedItem } from '@/lib/ai/embed';
+import { moderateListing, uploadToDataUrl } from '@/server/moderation';
+import { violationNote } from '@/lib/ai/moderate';
+import { moderationCategoryLabel } from '@/lib/banned-terms';
 
 export async function GET(req: NextRequest) {
   const sp = req.nextUrl.searchParams;
@@ -128,12 +131,45 @@ export async function POST(req: Request) {
 
   const title = (aiTitle || (desc.length > 30 ? desc.slice(0, 30) : desc)).slice(0, 50);
 
+  // 发布前审核：本地词表 + 模型判定，全部在服务端完成。
+  // 不接受前端传来的「已通过」结论，否则改个请求体就能绕过审核。
+  const moderation = await moderateListing({
+    title,
+    desc: [desc, aiDesc].filter(Boolean).join('\n'),
+    imageDataUrl: await uploadToDataUrl(imagePath),
+    userId: user.id,
+  });
+  const decision = moderation.decision;
+
+  if (!decision.pass) {
+    // 拦截不入库：既不留垃圾数据，也避免「被拦的物品还能被搜到」。
+    // 用户改完描述可以立刻重试，不限制次数。
+    return NextResponse.json(
+      {
+        ok: false,
+        code: 'MODERATION_BLOCKED',
+        message: decision.reason,
+        category: decision.category,
+        categoryLabel: moderationCategoryLabel(decision.category),
+        hits: decision.hits.map((h) => h.term),
+        engine: decision.engine,
+        logId: moderation.logId,
+      },
+      { status: 422 },
+    );
+  }
+
+  // 模型故障时必须放行（否则 AI 挂了谁都不能发布），但打上待复核标记，
+  // 由管理员在 /admin/violations 兜底 —— 不能变成「审核失败就放行」的漏洞。
+  const violationFlag = decision.pendingReview ? 2 : 0;
+  const violationReason = violationNote(decision, moderation.errorKind);
+
   const info = getDb()
     .prepare(
       `INSERT INTO items
         (owner_id, title, raw_desc, ai_desc, category, condition_level, mode, price, image_path,
-         ai_tags, ai_edited, ai_price_low, ai_price_high, donate_tag)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         ai_tags, ai_edited, ai_price_low, ai_price_high, donate_tag, violation_flag, violation_reason)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       user.id,
@@ -150,6 +186,8 @@ export async function POST(req: Request) {
       aiPriceLow,
       aiPriceHigh,
       donateTag || null,
+      violationFlag,
+      violationReason,
     );
 
   const newId = Number(info.lastInsertRowid);
@@ -160,5 +198,9 @@ export async function POST(req: Request) {
     await embedItem(newId, { userId: user.id });
   });
 
-  return NextResponse.json({ ok: true, id: newId });
+  return NextResponse.json({
+    ok: true,
+    id: newId,
+    pendingReview: violationFlag === 2,
+  });
 }

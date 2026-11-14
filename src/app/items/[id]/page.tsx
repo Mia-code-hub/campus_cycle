@@ -44,6 +44,26 @@ export default async function ItemDetailPage({
         ← 返回列表
       </Link>
 
+      {/* 审核状态只给本人和管理员看，其他同学看到的仍是一件正常物品 */}
+      {item.violation_flag === 2 && (isOwner || user?.role === 'admin') && (
+        <div className="rounded-card-sm border border-amber-300/60 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <span className="font-medium">待人工复核：</span>
+          AI 审核本轮未能给出结论，物品已正常上架，管理员会尽快复核。
+          {item.violation_reason && (
+            <p className="mt-1 break-all text-xs text-amber-800/80">{item.violation_reason}</p>
+          )}
+        </div>
+      )}
+      {item.violation_flag === 1 && (isOwner || user?.role === 'admin') && (
+        <div className="rounded-card-sm border border-red-300/60 bg-red-50 px-4 py-3 text-sm text-red-800">
+          <span className="font-medium">已下架：</span>
+          该物品经人工复核判定不符合平台规则，已从列表与搜索中移除。
+          {item.violation_reason && (
+            <p className="mt-1 break-all text-xs text-red-700/80">{item.violation_reason}</p>
+          )}
+        </div>
+      )}
+
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="overflow-hidden rounded-card-lg bg-panel shadow-soft">
           {item.image_path ? (

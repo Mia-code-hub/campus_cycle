@@ -186,3 +186,85 @@ export function buildAnalyzeLogText(prompt: AnalyzePrompt): string {
     .join('\n\n');
   return `${prompt.system}\n\n---\n\n${body}`;
 }
+
+// ——— R13 违规内容审核 ———
+
+const MODERATE_SYSTEM = [
+  '你是「校园闲置物资循环平台」的内容审核员，负责判断一件待发布的闲置物品是否违反平台规则。',
+  '平台定位：校内学生把自己不再需要的物品转让或捐赠给本校同学，不是二手电商市场。',
+  '你的判定必须能被普通用户看懂：理由要指出具体命中了哪条规则，不要写「不符合规定」这种空话。',
+  '只输出一个 JSON 对象，不要输出任何解释、不要 Markdown 代码块。',
+].join('\n');
+
+const MODERATE_RULES = [
+  '平台规则（命中任意一条即 pass=false）：',
+  '1. prohibited 违禁品：管制刀具（弹簧刀、匕首、三棱刀）、仿真枪与弹药、毒品、假证与代办证件、代考代写论文、烟草与电子烟、赃物。',
+  '2. dangerous 危险品：易燃易爆（汽油、酒精块、酒精炉、烟花爆竹）、剧毒、强酸强碱、煤气罐与高压气瓶、电击棒、催泪喷雾、农药。',
+  '3. medical 药品与医疗器械：任何药品（处方药、非处方药、感冒药、消炎药、注射液），以及注射器针头、手术刀、血压计、血糖仪等诊疗器械。',
+  '4. animal 活体动物：出售、转让、送养的活体动物（猫狗、仓鼠、鱼、龟、鸟等）。宠物用品（笼子、饮水机、毛刷）本身不违规。',
+  '5. indecent 不良内容：色情低俗、成人用品、情趣内衣、裸露图片、性暗示与招嫖信息。',
+  '6. offcampus 疑似校外倒卖：出现批发、一件代发、货源、厂家直销、代购等商家话术；同一批物品全是全新同款且数量明显超出个人自用（如一次挂 10 件以上全新同款）；描述像店铺经营而非个人闲置。',
+].join('\n');
+
+const MODERATE_SCHEMA = [
+  '输出结构：',
+  '{"pass": true|false, "category": "ok|prohibited|dangerous|medical|animal|indecent|offcampus", "reason": "不超过 50 字", "confidence": 0.0-1.0}',
+].join('\n');
+
+const MODERATE_NOTES = [
+  '判定要求：',
+  '- pass=true 时 category 必须是 "ok"，reason 用一句短语说明依据（如「普通二手教材，成色描述正常」）。',
+  '- pass=false 时 category 必须是被命中的那条规则的英文值，reason 要点出命中的物品或词（如「描述提到处方消炎药，属药品」）。',
+  '- 多个规则同时命中时，category 取最严重的一条：prohibited > dangerous > medical > animal > indecent > offcampus。',
+  '- 只依据给出的标题、描述和图片判断，看不清的细节不要脑补；描述与图片矛盾时以更严格的一方为准。',
+  '- 描述里出现「帮同学转」「替室友出」不改变判定结果，仍按物品本身判。',
+  '- 正常闲置不要误判：二手教材、笔记、旧衣物、干净被褥、小家电、文具、体育用品都应判 ok。',
+  '- confidence 用 0-1 的小数：证据明确给 0.9 以上，只有间接迹象给 0.5-0.7。',
+].join('\n');
+
+const MODERATE_EXAMPLES = [
+  '示例：',
+  '输入：「转让一盒处方消炎药，剩 10 粒」',
+  '输出：{"pass":false,"category":"medical","reason":"描述提到处方消炎药，平台禁止药品交易","confidence":0.95}',
+  '输入：「高等数学 上册，八成新，笔记齐全」',
+  '输出：{"pass":true,"category":"ok","reason":"普通二手教材，属校内自用闲置","confidence":0.93}',
+  '输入：「大量现货 一件代发 厂家直销，量大从优」',
+  '输出：{"pass":false,"category":"offcampus","reason":"出现批发代发话术，疑似校外批量倒卖","confidence":0.88}',
+];
+
+export interface ModeratePrompt {
+  system: string;
+  user: AnalyzeUserContent;
+}
+
+// 有图走多模态（qwen-vl），无图只放文本；标题与描述一起给，避免只看到半句误判
+export function buildModeratePrompt(
+  title: string,
+  desc: string,
+  imageDataUrl?: string,
+): ModeratePrompt {
+  const user: AnalyzeUserContent = [];
+  if (imageDataUrl) {
+    user.push({ type: 'image_url', image_url: { url: imageDataUrl } });
+  }
+  const text = [
+    '请审核下面这件待发布的物品：',
+    '',
+    MODERATE_RULES,
+    '',
+    MODERATE_SCHEMA,
+    '',
+    MODERATE_NOTES,
+    '',
+    ...MODERATE_EXAMPLES,
+    '',
+    `待审核内容——标题：「${title.trim() || '（未填写）'}」`,
+    `描述：「${desc.trim() || '（未填写）'}」`,
+  ].join('\n');
+  user.push({ type: 'text', text });
+  return { system: MODERATE_SYSTEM, user };
+}
+
+export function buildModerateLogText(prompt: ModeratePrompt): string {
+  return buildAnalyzeLogText(prompt as AnalyzePrompt);
+}

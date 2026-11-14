@@ -289,6 +289,13 @@ export default function PublishForm() {
       });
       const data = await res.json().catch(() => null);
       if (!res.ok || !data?.ok) {
+        // 发布前审核未通过：退回第一步让用户改描述，不静默失败、也不丢已填内容
+        if (res.status === 422 && data?.code === 'MODERATION_BLOCKED') {
+          const label = data.categoryLabel ? `${data.categoryLabel}：` : '';
+          setError(`${label}${data.message}`);
+          setStep(1);
+          return;
+        }
         setError(data?.message ?? '发布失败，请重试');
         return;
       }

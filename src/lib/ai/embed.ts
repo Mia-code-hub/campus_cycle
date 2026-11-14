@@ -164,7 +164,7 @@ export async function backfillMissingEmbeddings(limit = 3): Promise<number> {
     const rows = getDb()
       .prepare(
         `SELECT id FROM items
-         WHERE status = 'listed' AND violation_flag = 0
+         WHERE status = 'listed' AND violation_flag <> 1
            AND (embedding IS NULL OR embedded_at IS NULL)
          ORDER BY id LIMIT ?`,
       )

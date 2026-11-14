@@ -30,7 +30,7 @@ export function searchItems(
   const rows = getDb()
     .prepare(
       `SELECT ${ITEM_COLUMNS}, embedding FROM items
-       WHERE status = 'listed' AND violation_flag = 0 AND embedding IS NOT NULL`,
+       WHERE status = 'listed' AND violation_flag <> 1 AND embedding IS NOT NULL`,
     )
     .all() as EmbeddingRow[];
 
@@ -87,7 +87,7 @@ export function keywordSearch(
   const rows = getDb()
     .prepare(
       `SELECT ${ITEM_COLUMNS}, raw_desc, ai_desc, ai_tags FROM items
-       WHERE status = 'listed' AND violation_flag = 0`,
+       WHERE status = 'listed' AND violation_flag <> 1`,
     )
     .all() as (ItemSummary & { raw_desc: string | null; ai_desc: string | null; ai_tags: string | null })[];
 
