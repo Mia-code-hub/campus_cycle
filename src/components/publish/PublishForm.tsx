@@ -2,22 +2,13 @@
 
 import { useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { CATEGORIES, CONDITIONS } from '@/lib/constants';
+import { aiEditedCode, badgeFor, type AiFill } from '@/lib/publish-ai';
 
 const ALLOWED_EXT = ['jpg', 'jpeg', 'png', 'webp'];
 const ALLOWED_MIME = ['image/jpeg', 'image/png', 'image/webp'];
 const MAX_SIZE = 5 * 1024 * 1024;
 
 const STEPS = ['图片与描述', '类别成色价格', '转售或捐赠'];
-
-type AiField = 'category' | 'condition' | 'title' | 'aiDesc' | 'tags';
-
-interface AiFill {
-  category: string;
-  condition: string;
-  title: string;
-  aiDesc: string;
-  tags: string[];
-}
 
 // 把图压到最长边 1024px、jpeg 质量 0.8，再转 dataURL，减少 token 与耗时
 function compressToDataUrl(file: File): Promise<string | null> {
@@ -90,45 +81,10 @@ export default function PublishForm() {
   const [submitting, setSubmitting] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiNotice, setAiNotice] = useState('');
-  const [aiFill, setAiFill] = useState<AiFill | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [aiFill, setAiFill] = useState<AiFill | null>(null);  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  function fieldWasAiFilled(field: AiField): boolean {
-    if (!aiFill) return false;
-    switch (field) {
-      case 'category':
-        return !!aiFill.category;
-      case 'condition':
-        return !!aiFill.condition;
-      case 'title':
-        return !!aiFill.title;
-      case 'aiDesc':
-        return !!aiFill.aiDesc;
-      case 'tags':
-        return aiFill.tags.length > 0;
-    }
-  }
-
-  function fieldWasEdited(field: AiField): boolean {
-    if (!aiFill) return false;
-    switch (field) {
-      case 'category':
-        return category !== aiFill.category;
-      case 'condition':
-        return condition !== aiFill.condition;
-      case 'title':
-        return title !== aiFill.title;
-      case 'aiDesc':
-        return aiDesc !== aiFill.aiDesc;
-      case 'tags':
-        return tags.join(',') !== aiFill.tags.join(',');
-    }
-  }
-
-  function badgeState(field: AiField): 'AI' | '已修改' | null {
-    if (!fieldWasAiFilled(field)) return null;
-    return fieldWasEdited(field) ? '已修改' : 'AI';
-  }
+  // 当前表单值快照，用于和 AI 回填值比对出「AI / 已修改」徽章
+  const current: AiFill = { category, condition, title, aiDesc, tags };
 
   async function onFileChange(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -187,7 +143,8 @@ export default function PublishForm() {
       });
       const data = await res.json().catch(() => null);
       if (!data?.ok || !data?.data) {
-        setAiNotice('AI 暂不可用，已保留手动填写');
+        // 任何失败都只提示，表单原样保留，用户继续手填
+        setAiNotice(data?.message ?? 'AI 暂不可用，已保留手动填写');
         return;
       }
       const d = data.data;
@@ -203,6 +160,11 @@ export default function PublishForm() {
         aiDesc: d.aiDesc ?? '',
         tags: d.tags ?? [],
       });
+      setAiNotice(
+        data.degraded
+          ? '已按文字描述生成，图片未参与识别，请核对细节'
+          : 'AI 已填写，可直接修改后发布',
+      );
     } catch {
       setAiNotice('AI 暂不可用，已保留手动填写');
     } finally {
@@ -217,12 +179,7 @@ export default function PublishForm() {
     if (submitting) return;
     setError('');
     setSubmitting(true);
-    const anyEdited = aiFill
-      ? (['category', 'condition', 'title', 'aiDesc', 'tags'] as AiField[]).some((f) =>
-          fieldWasEdited(f),
-        )
-      : false;
-    const aiEdited = !aiFill ? 0 : anyEdited ? 2 : 1;
+    const aiEdited = aiEditedCode(aiFill, current);
     try {
       const res = await fetch('/api/items', {
         method: 'POST',
@@ -324,20 +281,28 @@ export default function PublishForm() {
 
         {step === 2 && (
           <div className="flex flex-col gap-4">
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={onAiFill}
-                disabled={aiLoading || !desc.trim()}
-                className={`rounded-card px-4 py-2 text-sm font-medium transition ${
-                  aiLoading
-                    ? 'cursor-wait bg-lilac/40 text-ink'
-                    : 'bg-lilac/40 text-ink hover:bg-lilac/60 disabled:opacity-50'
-                }`}
-              >
-                {aiLoading ? 'AI 正在识别…' : 'AI 帮我完善'}
-              </button>
-              {aiNotice && <span className="text-xs text-ink-soft">{aiNotice}</span>}
+            <div className="flex flex-col gap-2 rounded-card-lg bg-cream/60 px-4 py-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={onAiFill}
+                  disabled={aiLoading || !desc.trim()}
+                  className={`rounded-card px-4 py-2 text-sm font-medium transition ${
+                    aiLoading
+                      ? 'cursor-wait bg-lilac/40 text-ink'
+                      : 'bg-lilac/40 text-ink hover:bg-lilac/60 disabled:opacity-50'
+                  }`}
+                >
+                  {aiLoading ? 'AI 正在识别…' : 'AI 帮我完善'}
+                </button>
+                {aiNotice && <span className="text-xs text-ink-soft">{aiNotice}</span>}
+              </div>
+              <p className="text-xs leading-relaxed text-ink-soft">
+                {sourceFile
+                  ? '会结合图片和你的描述生成；'
+                  : '未上传图片，将只依据文字描述生成；'}
+                AI 只写能确认的信息，不编造品牌型号。徽章「AI」表示 AI 填的，你改动后自动变「已修改」，不影响发布。
+              </p>
             </div>
 
             {aiLoading && (
@@ -351,7 +316,7 @@ export default function PublishForm() {
             <div className="flex flex-col gap-2">
               <span className="flex items-center gap-1.5 text-sm text-ink-soft">
                 类别
-                <FieldBadge state={badgeState('category')} />
+                <FieldBadge state={badgeFor(aiFill, current, 'category')} />
               </span>
               <div className="flex flex-wrap gap-2">
                 {CATEGORIES.map((c) => (
@@ -374,7 +339,7 @@ export default function PublishForm() {
             <div className="flex flex-col gap-2">
               <span className="flex items-center gap-1.5 text-sm text-ink-soft">
                 成色
-                <FieldBadge state={badgeState('condition')} />
+                <FieldBadge state={badgeFor(aiFill, current, 'condition')} />
               </span>
               <div className="flex flex-wrap gap-2">
                 {CONDITIONS.map((c) => (
@@ -397,7 +362,7 @@ export default function PublishForm() {
             <label className="flex flex-col gap-1.5">
               <span className="flex items-center gap-1.5 text-sm text-ink-soft">
                 标题
-                <FieldBadge state={badgeState('title')} />
+                <FieldBadge state={badgeFor(aiFill, current, 'title')} />
               </span>
               <input
                 type="text"
@@ -412,7 +377,7 @@ export default function PublishForm() {
             <label className="flex flex-col gap-1.5">
               <span className="flex items-center gap-1.5 text-sm text-ink-soft">
                 转让文案
-                <FieldBadge state={badgeState('aiDesc')} />
+                <FieldBadge state={badgeFor(aiFill, current, 'aiDesc')} />
               </span>
               <textarea
                 value={aiDesc}
@@ -427,7 +392,7 @@ export default function PublishForm() {
             <label className="flex flex-col gap-1.5">
               <span className="flex items-center gap-1.5 text-sm text-ink-soft">
                 标签
-                <FieldBadge state={badgeState('tags')} />
+                <FieldBadge state={badgeFor(aiFill, current, 'tags')} />
               </span>
               <input
                 type="text"

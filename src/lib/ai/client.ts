@@ -13,15 +13,62 @@ export class AiError extends Error {
   }
 }
 
-const BASE_URL = process.env.DASHSCOPE_BASE_URL ?? 'https://dashscope.aliyuncs.com/compatible-mode/v1';
-const API_KEY = process.env.DASHSCOPE_API_KEY ?? '';
 const TIMEOUT_MS = 15_000;
 
-// 惰性单例，避免每次调用重复实例化
-let _client: OpenAI | null = null;
-function getClient(): OpenAI {
-  if (!_client) _client = new OpenAI({ apiKey: API_KEY, baseURL: BASE_URL });
-  return _client;
+// 两个通道都是 OpenAI 兼容端点，按模型名前缀路由：
+//   deepseek-*  → DeepSeek 官方（只支持纯文本）
+//   其他（qwen-* / text-embedding-*）→ 阿里百炼
+// 这样换模型只改 .env.local，不动代码。
+type ProviderName = 'dashscope' | 'deepseek';
+
+interface ProviderConf {
+  name: ProviderName;
+  baseURL: string;
+  apiKey: string;
+}
+
+export function providerOf(model: string): ProviderName {
+  return model.trim().toLowerCase().startsWith('deepseek') ? 'deepseek' : 'dashscope';
+}
+
+function confOf(model: string): ProviderConf {
+  if (providerOf(model) === 'deepseek') {
+    return {
+      name: 'deepseek',
+      baseURL: process.env.DEEPSEEK_BASE_URL ?? 'https://api.deepseek.com/v1',
+      apiKey: process.env.DEEPSEEK_API_KEY ?? '',
+    };
+  }
+  return {
+    name: 'dashscope',
+    baseURL:
+      process.env.DASHSCOPE_BASE_URL ?? 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+    apiKey: process.env.DASHSCOPE_API_KEY ?? '',
+  };
+}
+
+// 模型是否配置了密钥；没有密钥就不发请求，直接走降级
+export function hasModelKey(model: string): boolean {
+  if (!model) return false;
+  return confOf(model).apiKey.length > 0;
+}
+
+// 是否具备识图能力：DeepSeek 官方 API 目前无视觉模型，图片会直接被拒，
+// 因此只有百炼的 qwen-vl 系列算「能用图」。不可用时调用方应降级为纯文本。
+export function canUseVision(model: string): boolean {
+  if (!hasModelKey(model)) return false;
+  if (providerOf(model) !== 'dashscope') return false;
+  return /vl|vision/i.test(model);
+}
+
+// 惰性单例（按通道各一个），避免每次调用重复实例化
+const clients = new Map<ProviderName, OpenAI>();
+function getClient(conf: ProviderConf): OpenAI {
+  const cached = clients.get(conf.name);
+  if (cached) return cached;
+  const client = new OpenAI({ apiKey: conf.apiKey, baseURL: conf.baseURL });
+  clients.set(conf.name, client);
+  return client;
 }
 
 export interface ChatMessage {
@@ -33,19 +80,29 @@ export interface ChatOptions {
   model: string;
   messages: ChatMessage[];
   maxTokens?: number;
+  temperature?: number;
 }
 
 // chat：返回模型原始文本，不解析、不落库（留痕统一由 withAiLog 负责）
-export async function chat({ model, messages, maxTokens = 1024 }: ChatOptions): Promise<string> {
-  if (!API_KEY) throw new AiError('api_error', 'DASHSCOPE_API_KEY 未配置');
+export async function chat({
+  model,
+  messages,
+  maxTokens = 1024,
+  temperature,
+}: ChatOptions): Promise<string> {
+  const conf = confOf(model);
+  if (!conf.apiKey) {
+    throw new AiError('api_error', `${conf.name} 通道未配置 API Key（模型 ${model}）`);
+  }
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
-    const res = await getClient().chat.completions.create(
+    const res = await getClient(conf).chat.completions.create(
       {
         model,
         messages: messages as unknown as ChatCompletionMessageParam[],
         max_tokens: maxTokens,
+        ...(temperature === undefined ? {} : { temperature }),
       },
       { signal: controller.signal },
     );
@@ -71,12 +128,15 @@ export interface EmbedOptions {
 
 // embed：返回每个文本对应的向量（number[]，R12 再序列化存 BLOB）
 export async function embed({ model, texts, dimensions }: EmbedOptions): Promise<number[][]> {
-  if (!API_KEY) throw new AiError('api_error', 'DASHSCOPE_API_KEY 未配置');
+  const conf = confOf(model);
+  if (!conf.apiKey) {
+    throw new AiError('api_error', `${conf.name} 通道未配置 API Key（模型 ${model}）`);
+  }
   if (texts.length === 0) return [];
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
-    const res = await getClient().embeddings.create(
+    const res = await getClient(conf).embeddings.create(
       { model, input: texts, dimensions },
       { signal: controller.signal },
     );

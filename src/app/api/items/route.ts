@@ -95,12 +95,20 @@ export async function POST(req: Request) {
     );
   }
 
-  // AI 辅助字段（可选，来自 /api/ai/analyze 的回填）
-  const aiTitle = typeof body.title === 'string' ? body.title.trim() : '';
-  const aiDesc = typeof body.aiDesc === 'string' ? body.aiDesc.trim() : '';
+  // AI 辅助字段（可选，来自 /api/ai/analyze 的回填，用户可改）
+  const aiTitle = typeof body.title === 'string' ? body.title.trim().slice(0, 50) : '';
+  const aiDesc = typeof body.aiDesc === 'string' ? body.aiDesc.trim().slice(0, 500) : '';
   const aiTags = Array.isArray(body.aiTags)
-    ? body.aiTags.filter((t): t is string => typeof t === 'string').map((t) => t.trim()).filter(Boolean).slice(0, 6)
+    ? [
+        ...new Set(
+          body.aiTags
+            .filter((t): t is string => typeof t === 'string')
+            .map((t) => t.trim().slice(0, 12))
+            .filter(Boolean),
+        ),
+      ].slice(0, 6)
     : [];
+  // ai_edited: 0=未用 AI，1=AI 填写且未改，2=AI 填写后用户改过
   const aiEditedRaw = Number(body.ai_edited);
   const aiEdited = [0, 1, 2].includes(aiEditedRaw) ? aiEditedRaw : 0;
 

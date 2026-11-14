@@ -15,7 +15,7 @@
   "dependencies": {
     "better-sqlite3": "^13.0.3",
     "next": "16.4.3",
-    "openai": "^7.47.0",
+    "openai": "^7.57.0",
     "react": "19.3.0",
     "react-dom": "19.3.0"
   },
