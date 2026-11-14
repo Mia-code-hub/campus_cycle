@@ -114,3 +114,9 @@ export function getItemDetail(id: number): ItemDetail | null {
     .get(id) as ItemDetail | undefined;
   return row ?? null;
 }
+
+export function isFavorited(userId: number, itemId: number): boolean {
+  return !!getDb()
+    .prepare('SELECT 1 FROM favorites WHERE user_id = ? AND item_id = ?')
+    .get(userId, itemId);
+}

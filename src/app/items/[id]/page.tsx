@@ -1,7 +1,10 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { getItemDetail } from '@/server/items';
+import { getCurrentUser } from '@/server/auth';
+import { getItemDetail, isFavorited } from '@/server/items';
 import { categoryLabel, modeLabel } from '@/lib/constants';
+import FavoriteButton from '@/components/FavoriteButton';
+import ApplyButton from '@/components/ApplyButton';
 
 export const instant = false;
 
@@ -28,6 +31,9 @@ export default async function ItemDetailPage({
   const desc = item.ai_desc || item.raw_desc || '';
   const tags = parseTags(item.ai_tags);
   const isDonate = item.mode === 'donate';
+  const user = await getCurrentUser();
+  const favorited = user ? isFavorited(user.id, item.id) : false;
+  const isOwner = user ? user.id === item.owner_id : false;
 
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-6 px-6 py-8">
@@ -91,31 +97,8 @@ export default async function ItemDetailPage({
           </div>
 
           <div className="flex gap-3">
-            <button
-              type="button"
-              className="flex-1 rounded-card bg-blush py-3 text-sm font-medium text-ink transition hover:bg-blush-deep"
-            >
-              {isDonate ? '申请领取' : '我想要'}
-            </button>
-            <button
-              type="button"
-              aria-label="收藏"
-              className="rounded-card bg-panel px-5 py-3 text-ink-soft transition hover:text-blush-deep"
-            >
-              <svg
-                viewBox="0 0 24 24"
-                width="18"
-                height="18"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-              >
-                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-              </svg>
-            </button>
+            <ApplyButton itemId={item.id} mode={item.mode} isOwner={isOwner} />
+            <FavoriteButton itemId={item.id} initialFavorited={favorited} />
           </div>
         </div>
       </div>
