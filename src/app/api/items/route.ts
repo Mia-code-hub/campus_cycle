@@ -112,13 +112,27 @@ export async function POST(req: Request) {
   const aiEditedRaw = Number(body.ai_edited);
   const aiEdited = [0, 1, 2].includes(aiEditedRaw) ? aiEditedRaw : 0;
 
+  // AI 参考价区间（仅转售存，用户可只采纳 suggested）
+  const priceNum = (v: unknown): number | null => {
+    const n = typeof v === 'number' ? v : Number(v);
+    return Number.isFinite(n) && n > 0 && n <= 100_000 ? Math.round(n) : null;
+  };
+  const aiPriceLow = mode === 'sale' ? priceNum(body.aiPriceLow) : null;
+  const aiPriceHigh = mode === 'sale' ? priceNum(body.aiPriceHigh) : null;
+  // 公益标签只在捐赠时保存，长度对齐 prompt 约束
+  const donateTag =
+    mode === 'donate' && typeof body.donateTag === 'string'
+      ? body.donateTag.trim().slice(0, 20)
+      : '';
+
   const title = (aiTitle || (desc.length > 30 ? desc.slice(0, 30) : desc)).slice(0, 50);
 
   const info = getDb()
     .prepare(
       `INSERT INTO items
-        (owner_id, title, raw_desc, ai_desc, category, condition_level, mode, price, image_path, ai_tags, ai_edited)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        (owner_id, title, raw_desc, ai_desc, category, condition_level, mode, price, image_path,
+         ai_tags, ai_edited, ai_price_low, ai_price_high, donate_tag)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       user.id,
@@ -132,6 +146,9 @@ export async function POST(req: Request) {
       imagePath || null,
       aiTags.length ? JSON.stringify(aiTags) : null,
       aiEdited,
+      aiPriceLow,
+      aiPriceHigh,
+      donateTag || null,
     );
 
   return NextResponse.json({ ok: true, id: Number(info.lastInsertRowid) });

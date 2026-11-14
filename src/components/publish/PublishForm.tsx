@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useState, type ChangeEvent, type FormEvent } from 'react';
+import { useRouter } from 'next/navigation';
 import { CATEGORIES, CONDITIONS } from '@/lib/constants';
 import { aiEditedCode, badgeFor, type AiFill } from '@/lib/publish-ai';
 
@@ -9,6 +10,31 @@ const ALLOWED_MIME = ['image/jpeg', 'image/png', 'image/webp'];
 const MAX_SIZE = 5 * 1024 * 1024;
 
 const STEPS = ['图片与描述', '类别成色价格', '转售或捐赠'];
+
+interface AiPrice {
+  low: number;
+  high: number;
+  suggested: number;
+  reason?: string;
+}
+
+interface AnalyzeData {
+  category: string;
+  conditionLevel: string;
+  title?: string;
+  aiDesc?: string;
+  tags?: string[];
+  priceRange?: { low: number; high: number; suggested: number };
+  priceReason?: string;
+  donateTag?: string;
+}
+
+interface AnalyzeResponse {
+  ok: boolean;
+  degraded?: boolean;
+  data?: AnalyzeData;
+  message?: string;
+}
 
 // 把图压到最长边 1024px、jpeg 质量 0.8，再转 dataURL，减少 token 与耗时
 function compressToDataUrl(file: File): Promise<string | null> {
@@ -63,7 +89,34 @@ function FieldBadge({ state }: { state: 'AI' | '已修改' | null }) {
   );
 }
 
+// 参考价区间条：low—high 渐变，suggested 打点，点一下填入价格框
+function PriceRangeBar({ range, onPick }: { range: AiPrice; onPick: (v: number) => void }) {
+  const span = Math.max(range.high - range.low, 1);
+  const pct = Math.min(100, Math.max(0, ((range.suggested - range.low) / span) * 100));
+  return (
+    <div className="mt-3">
+      <button
+        type="button"
+        onClick={() => onPick(range.suggested)}
+        aria-label={`填入建议价 ${range.suggested} 元`}
+        className="relative block h-2.5 w-full rounded-full bg-gradient-to-r from-sky/50 via-sky/80 to-blush transition hover:opacity-90"
+      >
+        <span
+          className="absolute -top-[3px] h-4 w-4 rounded-full border-2 border-panel bg-ink shadow"
+          style={{ left: `calc(${pct}% - 8px)` }}
+        />
+      </button>
+      <div className="mt-1.5 flex justify-between text-[10px] text-ink-soft">
+        <span>¥{range.low}</span>
+        <span>建议 ¥{range.suggested}</span>
+        <span>¥{range.high}</span>
+      </div>
+    </div>
+  );
+}
+
 export default function PublishForm() {
+  const router = useRouter();
   const [step, setStep] = useState(1);
   const [desc, setDesc] = useState('');
   const [imagePath, setImagePath] = useState('');
@@ -81,7 +134,11 @@ export default function PublishForm() {
   const [submitting, setSubmitting] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiNotice, setAiNotice] = useState('');
-  const [aiFill, setAiFill] = useState<AiFill | null>(null);  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [aiFill, setAiFill] = useState<AiFill | null>(null);
+  const [aiPrice, setAiPrice] = useState<AiPrice | null>(null);
+  const [aiDonateTag, setAiDonateTag] = useState('');
+  const [donateTag, setDonateTag] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // 当前表单值快照，用于和 AI 回填值比对出「AI / 已修改」徽章
   const current: AiFill = { category, condition, title, aiDesc, tags };
@@ -129,8 +186,9 @@ export default function PublishForm() {
     }
   }
 
-  async function onAiFill() {
-    if (aiLoading || !desc.trim()) return;
+  // 统一的分析请求：sale 出估价、donate 出公益标签；失败只提示，绝不阻断
+  async function requestAnalyze(analyzeMode: 'sale' | 'donate'): Promise<AnalyzeResponse | null> {
+    if (!desc.trim()) return null;
     setAiNotice('');
     setAiLoading(true);
     try {
@@ -139,37 +197,66 @@ export default function PublishForm() {
       const res = await fetch('/api/ai/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ desc: desc.trim(), imageDataUrl: dataUrl }),
+        body: JSON.stringify({ desc: desc.trim(), imageDataUrl: dataUrl, mode: analyzeMode }),
       });
-      const data = await res.json().catch(() => null);
-      if (!data?.ok || !data?.data) {
-        // 任何失败都只提示，表单原样保留，用户继续手填
+      const data = (await res.json().catch(() => null)) as AnalyzeResponse | null;
+      if (!data?.ok || !data.data) {
         setAiNotice(data?.message ?? 'AI 暂不可用，已保留手动填写');
-        return;
+        return null;
       }
-      const d = data.data;
-      setCategory(d.category);
-      setCondition(d.conditionLevel);
-      setTitle(d.title ?? '');
-      setAiDesc(d.aiDesc ?? '');
-      setTags(d.tags ?? []);
-      setAiFill({
-        category: d.category,
-        condition: d.conditionLevel,
-        title: d.title ?? '',
-        aiDesc: d.aiDesc ?? '',
-        tags: d.tags ?? [],
-      });
-      setAiNotice(
-        data.degraded
-          ? '已按文字描述生成，图片未参与识别，请核对细节'
-          : 'AI 已填写，可直接修改后发布',
-      );
+      return data;
     } catch {
       setAiNotice('AI 暂不可用，已保留手动填写');
+      return null;
     } finally {
       setAiLoading(false);
     }
+  }
+
+  async function onAiFill() {
+    if (aiLoading) return;
+    const res = await requestAnalyze(mode === 'donate' ? 'donate' : 'sale');
+    const d = res?.data;
+    if (!d) return;
+    const next: AiFill = {
+      category: d.category,
+      condition: d.conditionLevel,
+      title: d.title ?? '',
+      aiDesc: d.aiDesc ?? '',
+      tags: d.tags ?? [],
+    };
+    setCategory(next.category);
+    setCondition(next.condition);
+    setTitle(next.title);
+    setAiDesc(next.aiDesc);
+    setTags(next.tags);
+    setAiFill(next);
+
+    setAiPrice(d.priceRange ? { ...d.priceRange, reason: d.priceReason } : null);
+    // 价格框空着就顺手填建议价，用户可改
+    if (d.priceRange && !price) setPrice(String(d.priceRange.suggested));
+    setAiDonateTag(d.donateTag ?? '');
+    setDonateTag(d.donateTag ?? '');
+
+    setAiNotice(
+      res?.degraded
+        ? '已按文字描述生成，图片未参与识别，请核对细节'
+        : 'AI 已填写，可直接修改后发布',
+    );
+  }
+
+  // 捐赠模式下的公益标签：AI 生成失败也能手填
+  async function onAiDonateTag() {
+    if (aiLoading) return;
+    const res = await requestAnalyze('donate');
+    const tag = res?.data?.donateTag;
+    if (!tag) {
+      setAiNotice((prev) => prev || '没拿到公益标签，可手动填写');
+      return;
+    }
+    setDonateTag(tag);
+    setAiDonateTag(tag);
+    setAiNotice('已生成公益标签，可修改');
   }
 
   const canNext = step === 1 ? desc.trim().length > 0 : !!category && !!condition;
@@ -195,6 +282,9 @@ export default function PublishForm() {
           aiDesc,
           aiTags: tags,
           ai_edited: aiEdited,
+          aiPriceLow: aiPrice?.low,
+          aiPriceHigh: aiPrice?.high,
+          donateTag,
         }),
       });
       const data = await res.json().catch(() => null);
@@ -202,7 +292,7 @@ export default function PublishForm() {
         setError(data?.message ?? '发布失败，请重试');
         return;
       }
-      window.location.href = `/items/${data.id}`;
+      router.push(`/items/${data.id}`);
     } catch {
       setError('网络异常，请稍后重试');
     } finally {
@@ -403,18 +493,48 @@ export default function PublishForm() {
               />
             </label>
 
-            <label className="flex flex-col gap-1.5">
-              <span className="text-sm text-ink-soft">转售价（元）</span>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={price}
-                onChange={(e) => setPrice(e.target.value)}
-                placeholder="转售才需要，捐赠免费"
-                className="rounded-card-sm border border-black/10 bg-panel px-3 py-2 text-sm outline-none focus:border-blush-deep"
-              />
-            </label>
+            {mode === 'donate' ? (
+              <p className="rounded-card-sm bg-blush/15 px-3 py-2 text-xs text-ink-soft">
+                已选公益捐赠，不需要定价。公益标签在下一步生成。
+              </p>
+            ) : (
+              <div className="flex flex-col gap-1.5">
+                <label className="flex flex-col gap-1.5">
+                  <span className="text-sm text-ink-soft">转售价（元）</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={price}
+                    onChange={(e) => setPrice(e.target.value)}
+                    placeholder="转售才需要，捐赠免费"
+                    className="rounded-card-sm border border-black/10 bg-panel px-3 py-2 text-sm outline-none focus:border-blush-deep"
+                  />
+                </label>
+                {aiPrice && (
+                  <div className="rounded-card-lg border border-black/10 bg-panel px-3 py-2.5">
+                    <div className="flex items-center justify-between text-xs text-ink-soft">
+                      <span>
+                        AI 参考价 ¥{aiPrice.low}–{aiPrice.high}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setPrice(String(aiPrice.suggested))}
+                        className="rounded-full bg-sky/40 px-2.5 py-0.5 text-[11px] font-medium text-ink transition hover:bg-sky/60"
+                      >
+                        填入建议价 ¥{aiPrice.suggested}
+                      </button>
+                    </div>
+                    <PriceRangeBar range={aiPrice} onPick={(v) => setPrice(String(v))} />
+                    {aiPrice.reason && (
+                      <p className="mt-1 text-[11px] leading-relaxed text-ink-soft">
+                        {aiPrice.reason}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 
@@ -445,6 +565,40 @@ export default function PublishForm() {
                 <p className="mt-1 text-sm text-ink-soft">免费捐给通过审核的困难生</p>
               </button>
             </div>
+
+            {mode === 'donate' && (
+              <div className="flex flex-col gap-2 rounded-card-lg border border-black/10 bg-panel p-4">
+                <span className="flex items-center gap-1.5 text-sm text-ink-soft">
+                  公益标签
+                  <FieldBadge
+                    state={
+                      aiDonateTag ? (donateTag === aiDonateTag ? 'AI' : '已修改') : null
+                    }
+                  />
+                </span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    type="text"
+                    value={donateTag}
+                    onChange={(e) => setDonateTag(e.target.value)}
+                    maxLength={20}
+                    placeholder="例：教材援助 · 让知识继续流转"
+                    className="min-w-0 flex-1 rounded-card-sm border border-black/10 bg-cream/40 px-3 py-2 text-sm outline-none focus:border-blush-deep"
+                  />
+                  <button
+                    type="button"
+                    onClick={onAiDonateTag}
+                    disabled={aiLoading || !desc.trim()}
+                    className="rounded-card bg-lilac/40 px-3 py-2 text-xs font-medium text-ink transition hover:bg-lilac/60 disabled:opacity-50"
+                  >
+                    {aiLoading ? '生成中…' : 'AI 生成'}
+                  </button>
+                </div>
+                <p className="text-xs text-ink-soft">
+                  会展示在捐赠页。不出现价格，也不出现「贫困」「资助」这类标签化表述。
+                </p>
+              </div>
+            )}
           </div>
         )}
 
@@ -517,6 +671,11 @@ export default function PublishForm() {
           <h3 className="mt-2 line-clamp-2 text-base font-medium">
             {title || desc.trim() || '一句话描述…'}
           </h3>
+          {mode === 'donate' && donateTag && (
+            <p className="mt-1 w-fit rounded-full bg-blush/30 px-2 py-0.5 text-[10px] text-ink">
+              {donateTag}
+            </p>
+          )}
           {aiDesc && <p className="mt-1 line-clamp-3 text-xs text-ink-soft">{aiDesc}</p>}
           {tags.length > 0 && (
             <div className="mt-2 flex flex-wrap gap-1.5">

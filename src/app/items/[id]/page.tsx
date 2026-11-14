@@ -81,6 +81,12 @@ export default async function ItemDetailPage({
           <h1 className="text-2xl font-semibold tracking-tight">{item.title}</h1>
           <p className="text-3xl font-semibold text-ink">{isDonate ? '免费' : `¥${item.price}`}</p>
 
+          {isDonate && item.donate_tag && (
+            <p className="w-fit rounded-full bg-blush/30 px-3 py-1 text-xs text-ink">
+              {item.donate_tag}
+            </p>
+          )}
+
           {desc && <p className="text-sm leading-7 text-ink-soft">{desc}</p>}
 
           {tags.length > 0 && (

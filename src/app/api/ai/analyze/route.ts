@@ -6,6 +6,8 @@ import { withAiLog, type AiResult } from '@/lib/ai/withAiLog';
 import { buildAnalyzeLogText, buildAnalyzePrompt } from '@/lib/ai/prompts';
 import { normalizeAnalyzeOutput, type AnalyzeOutput } from '@/lib/ai/analyze';
 import { CATEGORIES, CONDITIONS } from '@/lib/constants';
+import { getAllPriceStats } from '@/server/price-stats';
+import { REF_PRICE, buildPriceContext } from '@/lib/ref-price';
 
 const CATEGORY_VALUES = CATEGORIES.map((c) => c.value);
 const CONDITION_VALUES = [...CONDITIONS];
@@ -20,10 +22,12 @@ type RunResult = AiResult<AnalyzeOutput>;
 function runAnalyze(p: {
   model: string;
   desc: string;
+  mode: string;
   imageDataUrl: string;
+  priceContext?: string;
   userId: number;
 }): Promise<RunResult> {
-  const prompt = buildAnalyzePrompt(p.desc, 'sale', p.imageDataUrl || undefined);
+  const prompt = buildAnalyzePrompt(p.desc, p.mode, p.imageDataUrl || undefined, p.priceContext);
   const messages: ChatMessage[] = [
     { role: 'system', content: prompt.system },
     { role: 'user', content: prompt.user as unknown as ChatMessage['content'] },
@@ -62,6 +66,8 @@ export async function POST(req: Request) {
   const body = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
   const desc = typeof body.desc === 'string' ? body.desc.trim() : '';
   const imageDataUrl = typeof body.imageDataUrl === 'string' ? body.imageDataUrl.trim() : '';
+  // 捐赠不估价，只生成公益标签；缺省按转售处理
+  const mode = body.mode === 'donate' ? 'donate' : 'sale';
 
   if (!desc) {
     return NextResponse.json(
@@ -107,17 +113,30 @@ export async function POST(req: Request) {
     );
   }
 
+  // 定价参考：同类目已成交均价（样本够）+ 内置经验区间（样本不足），一次查询带全部类目
+  const priceContext =
+    mode === 'donate' ? undefined : buildPriceContext({ stats: getAllPriceStats(), refPrice: REF_PRICE });
+
   let result = await runAnalyze({
     model: primaryModel,
     desc,
+    mode,
     imageDataUrl: useVision ? image : '',
+    priceContext,
     userId: user.id,
   });
   // 图片理解失败（超时 / 通道不可用 / 返回乱码）→ 退回纯文本再试一次，
   // 用户至少能拿到标题和文案，界面标记 degraded 提示核对。
   let degraded = !useVision;
   if (!result.ok && useVision && hasModelKey(textModel)) {
-    result = await runAnalyze({ model: textModel, desc, imageDataUrl: '', userId: user.id });
+    result = await runAnalyze({
+      model: textModel,
+      desc,
+      mode,
+      imageDataUrl: '',
+      priceContext,
+      userId: user.id,
+    });
     degraded = true;
   }
 
@@ -125,6 +144,7 @@ export async function POST(req: Request) {
     return NextResponse.json({
       ok: true,
       data: result.parsed,
+      mode,
       degraded,
       modelUsed: useVision && !degraded ? visionModel : textModel,
       latencyMs: result.latencyMs,

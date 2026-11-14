@@ -69,3 +69,88 @@ test('标题与文案都为空视为无产出', () => {
   assert.equal(normalizeAnalyzeOutput('字符串', CATS, CONDS), null);
   assert.equal(normalizeAnalyzeOutput([], CATS, CONDS), null);
 });
+
+test('参考价：字符串数字转整数', () => {
+  const out = normalizeAnalyzeOutput(
+    {
+      category: 'textbook',
+      conditionLevel: '9成新',
+      title: '高数',
+      aiDesc: '高数上下册。',
+      priceRange: { low: '12', high: '22.4', suggested: '16' },
+      priceReason: '9成新教材带笔记',
+    },
+    CATS,
+    CONDS,
+  );
+  assert.deepEqual(out?.priceRange, { low: 12, high: 22, suggested: 16 });
+  assert.equal(out?.priceReason, '9成新教材带笔记');
+});
+
+test('参考价：low/high 颠倒自动纠正，suggested 越界收敛到区间内', () => {
+  const out = normalizeAnalyzeOutput(
+    {
+      category: 'appliance',
+      conditionLevel: '可用',
+      title: '台灯',
+      aiDesc: '台灯一盏。',
+      priceRange: { low: 30, high: 10, suggested: 99 },
+    },
+    CATS,
+    CONDS,
+  );
+  assert.deepEqual(out?.priceRange, { low: 10, high: 30, suggested: 30 });
+});
+
+test('参考价：结构不成立整段丢弃，不显示错的区间', () => {
+  const base = { category: 'daily', conditionLevel: '8成新', title: '水杯', aiDesc: '水杯一个。' };
+  const cases = [
+    { low: 20, high: 20, suggested: 20 }, // 区间为零
+    { low: 0, high: 20, suggested: 10 }, // low 非法
+    { low: 10, high: 20 }, // 缺 suggested
+    { low: 'abc', high: 20, suggested: 15 },
+    null,
+    [1, 2, 3],
+  ];
+  for (const priceRange of cases) {
+    const out = normalizeAnalyzeOutput({ ...base, priceRange }, CATS, CONDS);
+    assert.equal(out?.priceRange, undefined, JSON.stringify(priceRange));
+  }
+});
+
+test('定价依据截断到 40 字', () => {
+  const out = normalizeAnalyzeOutput(
+    {
+      category: 'daily',
+      conditionLevel: '8成新',
+      title: '水杯',
+      aiDesc: '水杯一个。',
+      priceReason: '这是一段很长的定价依据说明'.repeat(6),
+    },
+    CATS,
+    CONDS,
+  );
+  assert.equal(out?.priceReason?.length, 40);
+});
+
+test('公益标签去格式字符并截断，空值不返回该字段', () => {
+  const tag = normalizeAnalyzeOutput(
+    {
+      category: 'textbook',
+      conditionLevel: '9成新',
+      title: '高数',
+      aiDesc: '高数上下册。',
+      donateTag: '「教材援助 · 让知识继续流转」',
+    },
+    CATS,
+    CONDS,
+  );
+  assert.equal(tag?.donateTag, '教材援助 · 让知识继续流转');
+
+  const empty = normalizeAnalyzeOutput(
+    { category: 'textbook', conditionLevel: '9成新', title: '高数', aiDesc: 'x', donateTag: '  ' },
+    CATS,
+    CONDS,
+  );
+  assert.equal(empty?.donateTag, undefined);
+});
