@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { listItems, toNum } from '@/server/items';
 import ItemCard from '@/components/ItemCard';
 import FilterBar from '@/components/FilterBar';
+import EmptyState from '@/components/EmptyState';
 
 export const instant = false;
 
@@ -100,15 +101,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
       />
 
       {items.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 rounded-card-lg bg-panel py-16 text-center shadow-soft">
-          <p className="text-ink-soft">还没有闲置，去发布第一件</p>
-          <Link
-            href="/publish"
-            className="rounded-card bg-blush px-5 py-2.5 text-sm font-medium text-ink transition hover:bg-blush-deep"
-          >
-            去发布
-          </Link>
-        </div>
+        <EmptyState title="还没有闲置，去发布第一件" actionHref="/publish" actionLabel="去发布" />
       ) : (
         <>
           <p className="text-xs text-ink-soft">共 {total} 件在架</p>

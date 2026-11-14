@@ -19,3 +19,18 @@ export function categoryLabel(value: string): string {
 export function modeLabel(mode: string): string {
   return mode === 'donate' ? '公益捐赠' : '低价转售';
 }
+
+export const ITEM_STATUS_LABEL: Record<string, string> = {
+  listed: '在架',
+  reserved: '已预留',
+  completed: '已成交',
+  removed: '已下架',
+};
+
+export const APPLICATION_STATUS_LABEL: Record<string, string> = {
+  pending: '待处理',
+  approved: '已同意',
+  rejected: '已拒绝',
+  completed: '已完成',
+  cancelled: '已取消',
+};
