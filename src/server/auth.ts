@@ -1,7 +1,10 @@
-import { createHmac, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import { cookies } from 'next/headers';
 import { getDb } from './db';
+import { hashPassword, verifyPassword } from './password';
 import type { SessionUser } from '@/lib/types';
+
+export { hashPassword, verifyPassword };
 
 const SESSION_SECRET = process.env.SESSION_SECRET ?? '';
 if (!SESSION_SECRET) {
@@ -10,22 +13,6 @@ if (!SESSION_SECRET) {
 
 export const SESSION_COOKIE = 'session';
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7; // 7 天
-
-// scrypt + 16 字节随机盐，返回 "salt:hash" 的 hex 串
-export function hashPassword(password: string): string {
-  const salt = randomBytes(16).toString('hex');
-  const hash = scryptSync(password, salt, 64).toString('hex');
-  return `${salt}:${hash}`;
-}
-
-// 用 timingSafeEqual 比对，避免时序侧信道
-export function verifyPassword(password: string, stored: string): boolean {
-  const [salt, hash] = stored.split(':');
-  if (!salt || !hash) return false;
-  const candidate = scryptSync(password, salt, 64);
-  const expected = Buffer.from(hash, 'hex');
-  return candidate.length === expected.length && timingSafeEqual(candidate, expected);
-}
 
 // HMAC 签名 token：payload.signature
 export function signSession(userId: number): string {

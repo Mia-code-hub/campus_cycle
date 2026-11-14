@@ -29,6 +29,17 @@ npm run dev                    # http://localhost:3000
 - 每次 AI 调用的 prompt 原文与模型响应写入 `ai_call_logs` 表，通过 `node scripts/export-prompts.mjs` 导出为 Prompt 历史快照。
 - API Key 只在服务端读取，`.env.local` 与 `data/*.db` 不入库。
 
+## 演示账号
+
+密码统一为 `123456`（`npm run seed` 后生效）：
+
+| 账号 | 角色 | 说明 |
+|---|---|---|
+| `admin` | 管理员 | 审核帮扶资格、违规复核、数据看板 |
+| `grad1` / `grad2` / `grad3` | 毕业生 | 发布转售与捐赠物品 |
+| `fresh1` | 新生（帮扶生） | 已通过帮扶资格审核，公益专区优先 |
+| `fresh2` / `fresh3` | 新生 | 普通新生 |
+
 ## 当前进度
 
 - [x] 阶段 1：需求文档包、数据库设计、AI 接口契约、分轮提示词脚本
