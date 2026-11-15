@@ -1,10 +1,10 @@
-import { CO2_PER_KG, GREEN_WEIGHT_KG } from './green-factors.ts';
+import { CO2_PER_KG, GREEN_WEIGHT_KG, PAPER_SHARE } from './green-factors.ts';
 
 // 统计口径的唯一来源：接口返回、页面 tooltip、测试断言三处引用同一份文案，
 // 避免「页面上写 30 天、SQL 里算 7 天」这种对不上的情况。
 // 纯常量与纯函数，不碰数据库，便于 node:test 直接引入。
 
-export const STATS_VERSION = 'R16';
+export const STATS_VERSION = 'R17';
 
 export type MetricKey =
   | 'totalItems'
@@ -15,6 +15,7 @@ export type MetricKey =
   | 'aidedStudents'
   | 'benefitedStudents'
   | 'greenWeightKg'
+  | 'paperSavedKg'
   | 'co2SavedKg';
 
 export interface MetricCaliber {
@@ -76,6 +77,12 @@ export const METRIC_CALIBER: Record<MetricKey, MetricCaliber> = {
     formula: 'Σ 已成交物品（有捐赠快照用快照值，否则用该类目系数）',
     note: '转售与捐赠都计入：二手转卖同样让物品免于丢弃、省下一次新购；合计恒等于类别分布里各类重量之和',
   },
+  paperSavedKg: {
+    label: '节约纸张',
+    unit: 'kg',
+    formula: 'Σ 已成交物品折算重量 × 该类目纸张占比',
+    note: '只算教材与文具：教材按 90%、文具按 50% 计纸张，其余类目不计（宁可少算）',
+  },
   co2SavedKg: {
     label: '减碳量（参考估算）',
     unit: 'kgCO₂e',
@@ -106,6 +113,11 @@ export const PERIOD_CALIBER = {
     formula: "GROUP BY items.mode WHERE status='completed'",
     note: '占比 = 该模式件数 ÷ 累计完成流转件数',
   },
+  collegeBenefit: {
+    label: '学院受益分布',
+    formula: 'donations JOIN users ON receiver_id GROUP BY users.college',
+    note: '受益人数是去重受赠学生数，不是人次；不是每个学生都填了学院，未填的归入「未填写」一列',
+  },
 } as const;
 
 /** 环保公式的完整说明文本，前端 tooltip 与文档直接引用 */
@@ -114,6 +126,14 @@ export function greenFormulaText(): string {
     .map(([k, v]) => `${k} ${v}kg`)
     .join('、');
   return `折算重量 = 已成交物品逐件折算后求和（捐赠落库有快照则用快照，否则按类目系数：${list}，其余 0.4kg 兜底）；减碳量 = 折算重量 × ${CO2_PER_KG}。以上均为参考估算值，非实测。`;
+}
+
+/** 节约纸张口径的完整说明，看板 tooltip 与报告直接引用 */
+export function paperFormulaText(): string {
+  const list = Object.entries(PAPER_SHARE)
+    .map(([k, v]) => `${k} ${Math.round(v * 100)}%`)
+    .join('、');
+  return `节约纸张 = 已成交物品折算重量 × 类目纸张占比（${list}，其余类目不计）。按「二手再用省下一件新购」的思路估算，属于参考值。`;
 }
 
 /** 各指标口径的整体说明，接口返回值里的 caliber.metrics 用它 */

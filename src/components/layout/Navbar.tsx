@@ -9,11 +9,11 @@ export default async function Navbar() {
   return (
     <nav className="sticky top-0 z-10 border-b border-black/5 bg-panel/90 backdrop-blur">
       <div className="mx-auto flex h-14 w-full max-w-5xl items-center justify-between px-6">
-        <Link href="/" className="text-base font-semibold tracking-tight">
+        <Link href="/" className="shrink-0 text-base font-semibold tracking-tight">
           校园闲置循环
         </Link>
 
-        <div className="flex items-center gap-1 text-sm">
+        <div className="flex min-w-0 flex-1 items-center justify-end gap-1 overflow-x-auto text-sm whitespace-nowrap">
           <Link
             href="/search"
             className="rounded-card-sm px-3 py-1.5 text-ink transition hover:bg-cream"
@@ -28,9 +28,15 @@ export default async function Navbar() {
           </Link>
           {user ? (
             <>
-              <span className="px-2 text-ink-soft">你好，{user.nickname}</span>
+              <span className="hidden px-2 text-ink-soft sm:inline">你好，{user.nickname}</span>
               {user.role === 'admin' && (
                 <>
+                  <Link
+                    href="/admin"
+                    className="rounded-card-sm px-3 py-1.5 text-ink transition hover:bg-cream"
+                  >
+                    看板
+                  </Link>
                   <Link
                     href="/admin/violations"
                     className="rounded-card-sm px-3 py-1.5 text-ink transition hover:bg-cream"

@@ -4,6 +4,8 @@ import { readFileSync } from 'node:fs';
 import Database from 'better-sqlite3';
 import {
   getCategoryDistribution,
+  getCollegeBenefit,
+  getModeByCategory,
   getModeSplit,
   getMonthlyTrend,
   getOverview,
@@ -102,6 +104,15 @@ test('环保折算：捐赠快照优先，其余按类目系数，减碳量按�
   db.close();
 });
 
+test('节约纸张：只算教材与文具，且不超过折算重量', () => {
+  const { db } = seedDb();
+  const o = getOverview(db);
+  // 高数教材 0.35 × 0.9 = 0.315 + 中性笔 0.15 × 0.5 = 0.075，合计 0.39
+  assert.equal(o.paperSavedKg, 0.39);
+  assert.ok(o.paperSavedKg < o.greenWeightKg, '纸张量应当小于总折算重量');
+  db.close();
+});
+
 test('环保折算：总览重量恒等于类别分布各类之和', () => {
   const { db } = seedDb();
   const o = getOverview(db);
@@ -163,6 +174,93 @@ test('转售与捐赠占比：两份之和等于完成数', () => {
   db.close();
 });
 
+test('按类别拆分：转售与捐赠各自合计等于总表', () => {
+  const { db } = seedDb();
+  const buckets = getModeByCategory(db);
+  const split = getModeSplit(db);
+  assert.equal(
+    buckets.reduce((s, b) => s + b.sale, 0),
+    split.sale,
+  );
+  assert.equal(
+    buckets.reduce((s, b) => s + b.donate, 0),
+    split.donate,
+  );
+  // 教材那行只转售、被褥那行只捐赠
+  assert.deepEqual(
+    buckets.find((b) => b.category === 'textbook'),
+    { category: 'textbook', label: '教材', sale: 1, donate: 0 },
+  );
+  assert.deepEqual(
+    buckets.find((b) => b.category === 'bedding'),
+    { category: 'bedding', label: '被褥', sale: 0, donate: 1 },
+  );
+  db.close();
+});
+
+// 学院口径单独造数据：主 seed 的用户没填学院，混在一起会掩盖去重逻辑
+function seedCollegeDb() {
+  const db = new Database(':memory:');
+  db.exec(readFileSync('src/server/schema.sql', 'utf8'));
+
+  const user = db.prepare(
+    `INSERT INTO users (username, password_hash, salt, nickname, college) VALUES (?, 'x', 'x', ?, ?)`,
+  );
+  user.run('donor', '捐赠人', '计算机学院'); // 1
+  user.run('a', '学生甲', '计算机学院'); // 2
+  user.run('b', '学生乙', '计算机学院'); // 3
+  user.run('c', '学生丙', '外国语学院'); // 4
+  user.run('d', '学生丁', null); // 5 没填学院
+
+  const item = db.prepare(
+    `INSERT INTO items (owner_id, title, category, mode, price, status) VALUES (1, ?, 'textbook', 'donate', 0, 'completed')`,
+  );
+  const ids = ['书一', '书二', '书三', '书四'].map(
+    (t) => Number((item.run(t), db.prepare('SELECT last_insert_rowid() AS id').get() as { id: number }).id),
+  );
+
+  const don = db.prepare(
+    `INSERT INTO donations (item_id, donor_id, receiver_id, green_weight_kg) VALUES (?, 1, ?, 0.35)`,
+  );
+  don.run(ids[0], 2);
+  don.run(ids[1], 2); // 同一人收第二件：受益人数不涨，人次涨
+  don.run(ids[2], 4);
+  don.run(ids[3], 5); // 学院为空
+
+  return db;
+}
+
+test('学院受益：人数去重、人次单算，空学院归入未填写', () => {
+  const db = seedCollegeDb();
+  const rows = getCollegeBenefit(db);
+  assert.equal(rows.length, 3);
+  const by = new Map(rows.map((r) => [r.college, r]));
+  assert.deepEqual(by.get('计算机学院'), {
+    college: '计算机学院',
+    benefited: 1,
+    donations: 2,
+    items: 2,
+  });
+  assert.deepEqual(by.get('外国语学院'), {
+    college: '外国语学院',
+    benefited: 1,
+    donations: 1,
+    items: 1,
+  });
+  assert.deepEqual(by.get('未填写'), { college: '未填写', benefited: 1, donations: 1, items: 1 });
+  // 各学院受益人数之和 = 实际受助人数；人次之和 = 捐赠记录数
+  assert.equal(
+    rows.reduce((s, r) => s + r.benefited, 0),
+    getOverview(db).benefitedStudents,
+  );
+  const donationRows = (db.prepare('SELECT COUNT(*) AS c FROM donations').get() as { c: number }).c;
+  assert.equal(
+    rows.reduce((s, r) => s + r.donations, 0),
+    donationRows,
+  );
+  db.close();
+});
+
 test('空库：全 0、占比 0，不抛错', () => {
   const db = new Database(':memory:');
   db.exec(readFileSync('src/server/schema.sql', 'utf8'));
@@ -182,7 +280,7 @@ test('口径覆盖：返回值里每个指标都有对应说明', () => {
   assert.deepEqual(keys, documented);
 
   const caliber = statsCaliber(6);
-  assert.equal(caliber.version, 'R16');
+  assert.equal(caliber.version, 'R17');
   assert.equal(caliber.window.trendMonths, 6);
   assert.equal(caliber.window.activeUserDays, 30);
   assert.match(caliber.formulas.greenWeightKg, /参考估算值/);

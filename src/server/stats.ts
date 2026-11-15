@@ -1,6 +1,6 @@
 import type { Database } from 'better-sqlite3';
 import { CATEGORIES } from '../lib/constants.ts';
-import { CO2_PER_KG, greenWeightKg } from '../lib/green-factors.ts';
+import { CO2_PER_KG, greenWeightKg, paperShare } from '../lib/green-factors.ts';
 import {
   COUNTABLE,
   METRIC_CALIBER,
@@ -8,6 +8,7 @@ import {
   STATS_VERSION,
   greenFormulaText,
   metricCaliberList,
+  paperFormulaText,
 } from '../lib/stats-defs.ts';
 
 // 平台统计层：所有数字在 SQL 里算完再返回，不接受前端传值。
@@ -23,6 +24,8 @@ export interface Overview {
   /** 实际收到过捐赠的去重学生数（与 aidedStudents 是两种口径，别混） */
   benefitedStudents: number;
   greenWeightKg: number;
+  /** 教材与文具折算出的纸张重量 */
+  paperSavedKg: number;
   co2SavedKg: number;
 }
 
@@ -46,12 +49,33 @@ export interface ModeSplit {
   donateShare: number;
 }
 
+/** 同一类目下转售与捐赠的对照，横向柱状图用它 */
+export interface ModeBucket {
+  category: string;
+  label: string;
+  sale: number;
+  donate: number;
+}
+
+/** 学院受益：按受赠学生所在学院聚合 */
+export interface CollegeBucket {
+  college: string;
+  /** 去重受赠学生数 */
+  benefited: number;
+  /** 捐赠记录条数（人次） */
+  donations: number;
+  /** 收到过的不同物品数 */
+  items: number;
+}
+
 export interface PlatformStats {
   generatedAt: string;
   overview: Overview;
   trend: TrendPoint[];
   categories: CategoryBucket[];
   modeSplit: ModeSplit;
+  modeByCategory: ModeBucket[];
+  collegeBenefit: CollegeBucket[];
 }
 
 const round = (n: number, digits = 2) => {
@@ -101,6 +125,11 @@ function sumGreenWeight(db: Database): number {
   return round(completedWeights(db).reduce((s, r) => s + r.kg, 0));
 }
 
+/** 节约纸张：同一份逐件明细乘类目纸张占比，口径只有一处 */
+function sumPaperWeight(db: Database): number {
+  return round(completedWeights(db).reduce((s, r) => s + r.kg * paperShare(r.category), 0));
+}
+
 export function getOverview(db: Database): Overview {
   const items = db
     .prepare(
@@ -132,6 +161,7 @@ export function getOverview(db: Database): Overview {
     aidedStudents: aided.c,
     benefitedStudents: benefited.c,
     greenWeightKg: greenWeight,
+    paperSavedKg: sumPaperWeight(db),
     co2SavedKg: round(greenWeight * CO2_PER_KG, 1),
   };
 }
@@ -212,6 +242,58 @@ export function getModeSplit(db: Database): ModeSplit {
   };
 }
 
+/** 按类目拆开看转售与捐赠：横向对比图用，口径与 getModeSplit 完全一致 */
+export function getModeByCategory(db: Database): ModeBucket[] {
+  const rows = db
+    .prepare(
+      `SELECT category,
+              SUM(CASE WHEN mode = 'sale' THEN 1 ELSE 0 END) AS sale,
+              SUM(CASE WHEN mode = 'donate' THEN 1 ELSE 0 END) AS donate
+         FROM items
+        WHERE status = 'completed' AND violation_flag <> 1
+        GROUP BY category`,
+    )
+    .all() as Array<{ category: string; sale: number | null; donate: number | null }>;
+
+  const known = new Map(CATEGORIES.map((c) => [c.value, c.label]));
+  return rows
+    .map((r) => ({
+      category: r.category,
+      label: known.get(r.category) ?? r.category,
+      sale: r.sale ?? 0,
+      donate: r.donate ?? 0,
+    }))
+    .sort((a, b) => b.sale + b.donate - (a.sale + a.donate) || a.category.localeCompare(b.category));
+}
+
+/**
+ * 学院受益分布：按受赠学生所在学院聚合。
+ * 受益人数去重（一个人收两件算一人），donations 是人次（用于说明「多件」的情况）。
+ * 学院字段允许为空，空值单独归成「未填写」而不是丢掉——否则合计会对不上受助人数。
+ */
+export function getCollegeBenefit(db: Database): CollegeBucket[] {
+  const rows = db
+    .prepare(
+      `SELECT COALESCE(NULLIF(TRIM(u.college), ''), '未填写') AS college,
+              COUNT(DISTINCT u.id)  AS benefited,
+              COUNT(*)              AS donations,
+              COUNT(DISTINCT d.item_id) AS items
+         FROM donations d
+         LEFT JOIN users u ON u.id = d.receiver_id
+        GROUP BY college`,
+    )
+    .all() as Array<{ college: string; benefited: number; donations: number; items: number }>;
+
+  return rows
+    .map((r) => ({
+      college: r.college,
+      benefited: r.benefited,
+      donations: r.donations,
+      items: r.items,
+    }))
+    .sort((a, b) => b.benefited - a.benefited || b.donations - a.donations);
+}
+
 /** 一次拿全，给接口与看板复用；口径说明跟着数据一起返回 */
 export function getPlatformStats(db: Database, opts: { months?: number } = {}): PlatformStats {
   const months = opts.months ?? 6;
@@ -221,6 +303,8 @@ export function getPlatformStats(db: Database, opts: { months?: number } = {}): 
     trend: getMonthlyTrend(db, months),
     categories: getCategoryDistribution(db),
     modeSplit: getModeSplit(db),
+    modeByCategory: getModeByCategory(db),
+    collegeBenefit: getCollegeBenefit(db),
   };
 }
 
@@ -237,6 +321,7 @@ export function statsCaliber(months = 6) {
     periods: PERIOD_CALIBER,
     formulas: {
       greenWeightKg: greenFormulaText(),
+      paperSavedKg: paperFormulaText(),
       co2SavedKg: METRIC_CALIBER.co2SavedKg.formula,
       co2FactorPerKg: CO2_PER_KG,
     },
