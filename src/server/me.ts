@@ -7,7 +7,7 @@ export interface MyStats {
   received: number;
 }
 
-export type MyItemRow = ItemSummary & { status: string };
+export type MyItemRow = ItemSummary & { status: string; violation_flag: number };
 
 export interface ReceivedApplicationRow {
   id: number;
@@ -54,7 +54,7 @@ export function getMyStats(userId: number): MyStats {
 export function getMyItems(userId: number): MyItemRow[] {
   return getDb()
     .prepare(
-      'SELECT id, title, image_path, category, condition_level, mode, price, view_count, status, created_at FROM items WHERE owner_id = ? ORDER BY created_at DESC, id DESC',
+      'SELECT id, title, image_path, category, condition_level, mode, price, view_count, status, violation_flag, created_at FROM items WHERE owner_id = ? ORDER BY created_at DESC, id DESC',
     )
     .all(userId) as MyItemRow[];
 }

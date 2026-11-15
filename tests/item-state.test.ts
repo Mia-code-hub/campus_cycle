@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { transition } from '../src/server/item-state.ts';
+import { relistItem, transition, withdrawItem } from '../src/server/item-state.ts';
 
 // 正常链路
 test('approve: pending+listed → reserved+approved', () => {
@@ -72,4 +72,42 @@ test('cancel 已完成申领抛错', () => {
 
 test('cancel 已完成物品抛错', () => {
   assert.throws(() => transition({ status: 'completed' }, { status: 'approved' }, 'cancel'));
+});
+
+// 撤回与重新上架（物品主人的自主操作，与申领状态机解耦）
+test('withdraw: listed → removed', () => {
+  assert.equal(withdrawItem({ status: 'listed' }), 'removed');
+});
+
+test('withdraw: reserved → removed（已答应别人的也能撤，申领由调用方一并作废）', () => {
+  assert.equal(withdrawItem({ status: 'reserved' }), 'removed');
+});
+
+test('withdraw 已完成物品抛错', () => {
+  assert.throws(() => withdrawItem({ status: 'completed' }));
+});
+
+test('withdraw 已撤回物品抛错（避免重复操作）', () => {
+  assert.throws(() => withdrawItem({ status: 'removed' }));
+});
+
+test('relist: removed → listed', () => {
+  assert.equal(relistItem({ status: 'removed' }), 'listed');
+});
+
+test('relist 在架物品抛错', () => {
+  assert.throws(() => relistItem({ status: 'listed' }));
+});
+
+test('relist 已完成物品抛错（不能把交割完的东西重新上架）', () => {
+  assert.throws(() => relistItem({ status: 'completed' }));
+});
+
+test('relist 违规下架的物品抛错（不能绕过审核）', () => {
+  assert.throws(() => relistItem({ status: 'removed' }, 1));
+});
+
+test('relist 非违规的已撤回物品正常恢复', () => {
+  assert.equal(relistItem({ status: 'removed' }, 0), 'listed');
+  assert.equal(relistItem({ status: 'removed' }, 2), 'listed');
 });

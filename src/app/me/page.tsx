@@ -18,6 +18,7 @@ import {
 import ItemCard from '@/components/ItemCard';
 import EmptyState from '@/components/ui/EmptyState';
 import ApplicationActions from '@/components/ApplicationActions';
+import ItemWithdrawButton from '@/components/ItemWithdrawButton';
 import LetterAnonymityToggle from '@/components/letters/LetterAnonymityToggle';
 
 const TABS = [
@@ -32,6 +33,13 @@ function itemBadge(status: string): string {
   if (status === 'reserved') return 'bg-lilac text-ink';
   return 'bg-panel text-ink-soft';
 }
+
+/** removed 有两种来源：主人自己撤回，或管理员违规下架——对主人来说含义不同 */
+function statusLabel(i: { status: string; violation_flag: number }): string {
+  if (i.status === 'removed') return i.violation_flag === 1 ? '违规下架' : '已撤回';
+  return ITEM_STATUS_LABEL[i.status] ?? i.status;
+}
+
 function appBadge(status: string): string {
   if (status === 'pending') return 'bg-blush text-ink';
   if (status === 'approved') return 'bg-sky text-ink';
@@ -135,35 +143,51 @@ function PostedTab({ userId }: { userId: number }) {
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
       {items.map((i) => (
-        <Link
+        <div
           key={i.id}
-          href={`/items/${i.id}`}
-          className="group block overflow-hidden rounded-card bg-panel shadow-soft transition duration-200 hover:-translate-y-0.5 hover:shadow-lift"
+          className="flex flex-col overflow-hidden rounded-card bg-panel shadow-soft transition duration-200 hover:-translate-y-0.5 hover:shadow-lift"
         >
-          <div className="relative aspect-[4/3] w-full overflow-hidden bg-cream/70">
-            {i.image_path ? (
-              <img src={i.image_path} alt={i.title} className="h-full w-full object-cover" />
-            ) : (
-              <div className="flex h-full w-full items-center justify-center text-sm text-ink-soft">
-                暂无图片
-              </div>
-            )}
-            <span
-              className={`absolute left-2 top-2 rounded-full px-2.5 py-0.5 text-xs font-medium ${itemBadge(i.status)}`}
-            >
-              {ITEM_STATUS_LABEL[i.status] ?? i.status}
-            </span>
-          </div>
-          <div className="p-3">
-            <h3 className="line-clamp-1 text-sm font-medium text-ink">{i.title}</h3>
-            <div className="mt-1.5 flex items-center justify-between">
-              <span className="text-base font-semibold text-ink">
-                {i.mode === 'donate' ? '免费' : `¥${i.price}`}
+          {/* 卡片主体是链接，撤回按钮必须放在链接外面——否则点撤回会先跳到详情页 */}
+          <Link
+            href={`/items/${i.id}`}
+            className={`group block ${i.status === 'removed' ? 'opacity-55' : ''}`}
+          >
+            <div className="relative aspect-[4/3] w-full overflow-hidden bg-cream/70">
+              {i.image_path ? (
+                <img src={i.image_path} alt={i.title} className="h-full w-full object-cover" />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center text-sm text-ink-soft">
+                  暂无图片
+                </div>
+              )}
+              <span
+                className={`absolute left-2 top-2 rounded-full px-2.5 py-0.5 text-xs font-medium ${itemBadge(i.status)}`}
+              >
+                {statusLabel(i)}
               </span>
-              <span className="text-xs text-ink-soft">{categoryLabel(i.category)}</span>
             </div>
-          </div>
-        </Link>
+            <div className="p-3">
+              <h3 className="line-clamp-1 text-sm font-medium text-ink">{i.title}</h3>
+              <div className="mt-1.5 flex items-center justify-between">
+                <span className="text-base font-semibold text-ink">
+                  {i.mode === 'donate' ? '免费' : `¥${i.price}`}
+                </span>
+                <span className="text-xs text-ink-soft">{categoryLabel(i.category)}</span>
+              </div>
+            </div>
+          </Link>
+
+          {/* 已交割不显示撤回（台账已写）；违规下架也不给按钮，恢复要走管理员复核 */}
+          {i.status !== 'completed' && (
+            <div className="mt-auto border-t border-line px-3 py-2">
+              {i.violation_flag === 1 ? (
+                <p className="py-1 text-center text-xs text-ink-soft">违规下架，需管理员复核</p>
+              ) : (
+                <ItemWithdrawButton itemId={i.id} status={i.status} size="sm" block />
+              )}
+            </div>
+          )}
+        </div>
       ))}
     </div>
   );

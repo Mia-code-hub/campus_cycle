@@ -66,3 +66,28 @@ export function transition(
       throw new Error(`未知动作：${String(action)}`);
   }
 }
+
+// 撤回与重新上架：物品主人对自己发布物品的处理，与申领状态机解耦。
+// 撤回只改变物品是否对外可见，不动任何一条申领的历史记录——
+// 进行中的申领由调用方在同一事务里作废，已完成的交割记录必须原样留着，台账才对得上。
+export function withdrawItem(item: ItemStateLike): ItemStatus {
+  if (item.status === 'completed') {
+    throw new Error('已交割完成的物品不能撤回');
+  }
+  if (item.status === 'removed') {
+    throw new Error('物品已经撤回，无需重复操作');
+  }
+  return 'removed';
+}
+
+export function relistItem(item: ItemStateLike, violationFlag = 0): ItemStatus {
+  // 违规下架（violation_flag=1）的物品由管理员处理，主人不能自己恢复上架，
+  // 否则等于给了一条绕过审核的通道
+  if (violationFlag === 1) {
+    throw new Error('违规下架的物品需管理员复核通过后才能恢复');
+  }
+  if (item.status !== 'removed') {
+    throw new Error(`relist 要求物品状态为 removed，当前为 ${item.status}`);
+  }
+  return 'listed';
+}

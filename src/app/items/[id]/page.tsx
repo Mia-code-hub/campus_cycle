@@ -6,6 +6,7 @@ import { getConversationPeer } from '@/server/messages';
 import { categoryLabel, modeLabel } from '@/lib/constants';
 import FavoriteButton from '@/components/FavoriteButton';
 import ApplyButton from '@/components/ApplyButton';
+import ItemWithdrawButton from '@/components/ItemWithdrawButton';
 import MessageDrawer from '@/components/MessageDrawer';
 import Alert from '@/components/ui/Alert';
 import Badge from '@/components/ui/Badge';
@@ -44,6 +45,11 @@ export default async function ItemDetailPage({
   // 违规内容照样在传播，只是从列表里消失了。本人和管理员仍然能看，用来申诉与复核。
   if (item.violation_flag === 1 && !isOwner && user?.role !== 'admin') notFound();
 
+  // 撤回（status='removed'）是主人主动下架：对外等同于不存在。
+  // 列表与搜索已经过滤了它，详情页若只按 id 查就会留下一条「撤回了还能看」的捷径。
+  // 本人与管理员仍可打开，用来确认状态并重新上架。
+  if (item.status === 'removed' && !isOwner && user?.role !== 'admin') notFound();
+
   const peerId = user ? getConversationPeer(item.id, user.id) : null;
 
   return (
@@ -67,6 +73,12 @@ export default async function ItemDetailPage({
           {item.violation_reason && (
             <p className="mt-1 break-all text-xs text-danger/80">{item.violation_reason}</p>
           )}
+        </Alert>
+      )}
+
+      {item.status === 'removed' && item.violation_flag !== 1 && (isOwner || user?.role === 'admin') && (
+        <Alert tone="warn" title="已撤回">
+          这件物品已从列表与搜索中移除，其他同学看不到它。{isOwner && '点下方「重新上架」可以恢复。'}
         </Alert>
       )}
 
@@ -123,6 +135,11 @@ export default async function ItemDetailPage({
             <ApplyButton itemId={item.id} mode={item.mode} isOwner={isOwner} />
             <FavoriteButton itemId={item.id} initialFavorited={favorited} />
           </div>
+
+          {/* 违规下架的物品不给「重新上架」：那条路要走管理员复核 */}
+          {isOwner && item.violation_flag !== 1 && (
+            <ItemWithdrawButton itemId={item.id} status={item.status} size="lg" block />
+          )}
 
           {peerId != null && <MessageDrawer itemId={item.id} />}
         </div>
