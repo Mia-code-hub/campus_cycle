@@ -1,10 +1,13 @@
-import Link from 'next/link';
 import { after } from 'next/server';
 import { listItems, toNum } from '@/server/items';
 import { backfillMissingEmbeddings } from '@/lib/ai/embed';
 import ItemCard from '@/components/ItemCard';
 import FilterBar from '@/components/FilterBar';
-import EmptyState from '@/components/EmptyState';
+import EmptyState from '@/components/ui/EmptyState';
+import Badge from '@/components/ui/Badge';
+import Button, { ButtonLink } from '@/components/ui/Button';
+import Card from '@/components/ui/Card';
+import { Input } from '@/components/ui/Input';
 
 export const instant = false;
 
@@ -14,17 +17,17 @@ const MODULES = [
   {
     title: '公益捐赠通道',
     desc: '闲置定向流转给通过审核的困难生，AI 生成捐赠标签与电子感谢信，全程留台账。',
-    tone: 'bg-blush/25 text-blush-deep',
+    tone: 'blush' as const,
   },
   {
     title: 'AI 发布与语义找物',
     desc: '拍张照一句话，自动出类别、成色、文案与参考价；搜索按语义匹配而非关键词。',
-    tone: 'bg-lilac/30 text-lilac-deep',
+    tone: 'lilac' as const,
   },
   {
     title: '环保数据看板',
     desc: '流转件数、捐赠占比、折算减碳量自动统计，一键生成校园循环环保报告。',
-    tone: 'bg-sky/30 text-sky-deep',
+    tone: 'sky' as const,
   },
 ];
 
@@ -83,19 +86,17 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
         </span>
         <h1 className="text-3xl font-semibold tracking-tight">校园闲置物资循环 AI 平台</h1>
 
-        <form action="/search" method="get" className="flex gap-2">
-          <input
+        <form action="/search" method="get" role="search" className="flex gap-2">
+          <Input
             name="q"
             type="search"
+            aria-label="搜索在架闲置"
             placeholder="搜索你想要的闲置，如「高数教材」"
-            className="flex-1 rounded-card-sm border border-black/10 bg-panel px-4 py-2.5 text-sm outline-none focus:border-blush-deep"
+            className="flex-1 bg-panel px-4 py-2.5"
           />
-          <button
-            type="submit"
-            className="rounded-card bg-lilac px-5 py-2.5 text-sm font-medium text-ink transition hover:bg-lilac-deep"
-          >
+          <Button type="submit" variant="soft" size="lg" className="px-5">
             搜索
-          </button>
+          </Button>
         </form>
       </header>
 
@@ -108,7 +109,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
       />
 
       {items.length === 0 ? (
-        <EmptyState title="还没有闲置，去发布第一件" actionHref="/publish" actionLabel="去发布" />
+        <EmptyState title="还没有闲置，去发布第一件" action={{ href: '/publish', label: '去发布' }} />
       ) : (
         <>
           <p className="text-xs text-ink-soft">共 {total} 件在架</p>
@@ -119,12 +120,13 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
           </div>
           {hasMore ? (
             <div className="flex justify-center">
-              <Link
+              <ButtonLink
                 href={buildHref({ category, mode, condition, minPrice, maxPrice }, page + 1)}
-                className="rounded-card bg-panel px-8 py-2.5 text-sm text-ink shadow-soft transition hover:bg-cream"
+                variant="secondary"
+                className="px-8"
               >
                 加载更多
-              </Link>
+              </ButtonLink>
             </div>
           ) : (
             <p className="text-center text-xs text-ink-soft">已经到底啦</p>
@@ -132,23 +134,26 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
         </>
       )}
 
-      <section className="rounded-card-lg bg-panel p-6 shadow-soft">
+      <Card radius="lg" padding="xl">
         <h2 className="text-base font-semibold">平台能力</h2>
         <div className="mt-4 grid gap-4 sm:grid-cols-3">
           {MODULES.map((m) => (
-            <article
+            <Card
               key={m.title}
-              className="rounded-card bg-cream/70 p-5 shadow-soft transition duration-200 hover:-translate-y-0.5 hover:shadow-lift"
+              radius="md"
+              padding="lg"
+              tone="sunken"
+              className="transition duration-200 hover:-translate-y-0.5 hover:shadow-lift"
             >
-              <span className={`inline-block rounded-full px-3 py-1 text-xs font-medium ${m.tone}`}>
+              <Badge tone={m.tone} size="sm">
                 模块
-              </span>
+              </Badge>
               <h3 className="mt-3 text-base font-semibold">{m.title}</h3>
               <p className="mt-2 text-sm leading-6 text-ink-soft">{m.desc}</p>
-            </article>
+            </Card>
           ))}
         </div>
-      </section>
+      </Card>
     </main>
   );
 }

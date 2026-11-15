@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation';
 import { getCurrentUser } from '@/server/auth';
 import { getMyDonations } from '@/server/me';
 import { categoryLabel } from '@/lib/constants';
-import EmptyState from '@/components/EmptyState';
+import EmptyState from '@/components/ui/EmptyState';
 import DonationLetterButton from '@/components/letters/DonationLetterButton';
 
 export default function DonationsPage() {
@@ -42,7 +42,7 @@ async function DonationsContent() {
         <div className="overflow-x-auto rounded-card-lg bg-panel shadow-soft">
           <table className="w-full min-w-[640px] text-sm">
             <thead>
-              <tr className="border-b border-black/5 text-left text-ink-soft">
+              <tr className="border-b border-line text-left text-ink-soft">
                 <th className="px-4 py-3 font-medium">日期</th>
                 <th className="px-4 py-3 font-medium">物品</th>
                 <th className="px-4 py-3 font-medium">类别</th>
@@ -53,7 +53,7 @@ async function DonationsContent() {
             </thead>
             <tbody>
               {donations.map((d) => (
-                <tr key={d.id} className="border-b border-black/5 last:border-0">
+                <tr key={d.id} className="border-b border-line last:border-0">
                   <td className="px-4 py-3 text-ink-soft">{d.donated_at.slice(0, 10)}</td>
                   <td className="px-4 py-3">{d.item_title}</td>
                   <td className="px-4 py-3">{categoryLabel(d.category)}</td>

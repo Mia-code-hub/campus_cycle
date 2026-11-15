@@ -156,7 +156,7 @@ async function DashboardContent() {
         </ChartCard>
       </div>
 
-      <section className="rounded-card-lg bg-panel p-5 shadow-soft ring-1 ring-black/5">
+      <section className="rounded-card-lg bg-panel p-5 shadow-soft ring-1 ring-line">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-sm font-semibold tracking-tight">环保报告</h2>
@@ -169,7 +169,7 @@ async function DashboardContent() {
         </div>
       </section>
 
-      <details className="rounded-card bg-cream/60 px-4 py-3 text-xs text-ink-soft ring-1 ring-black/5">
+      <details className="rounded-card bg-cream/60 px-4 py-3 text-xs text-ink-soft ring-1 ring-line">
         <summary className="cursor-pointer select-none text-ink">统计口径（点开看每个数字怎么算的）</summary>
         <dl className="mt-3 grid gap-2 sm:grid-cols-2">
           {(

@@ -5,13 +5,14 @@ import { getCurrentUser } from '@/server/auth';
 import { listViolationItems, rescanItem } from '@/server/moderation';
 import { categoryLabel, modeLabel } from '@/lib/constants';
 import ViolationActions from '@/components/admin/ViolationActions';
-import EmptyState from '@/components/EmptyState';
+import EmptyState from '@/components/ui/EmptyState';
+import Badge, { type BadgeTone } from '@/components/ui/Badge';
 
 export const instant = false;
 
-const FLAG_META: Record<number, { text: string; cls: string }> = {
-  1: { text: '已下架', cls: 'bg-red-100 text-red-700' },
-  2: { text: '待复核', cls: 'bg-amber-100 text-amber-800' },
+const FLAG_META: Record<number, { text: string; tone: BadgeTone }> = {
+  1: { text: '已下架', tone: 'danger' },
+  2: { text: '待复核', tone: 'warn' },
 };
 
 export default function AdminViolationsPage() {
@@ -62,7 +63,7 @@ async function AdminViolationsContent() {
           {rows.map((row) => {
             const meta = FLAG_META[row.violation_flag] ?? {
               text: `标记 ${row.violation_flag}`,
-              cls: 'bg-panel text-ink-soft',
+              tone: 'neutral' as BadgeTone,
             };
             const hits = rescanItem(row);
             return (
@@ -84,9 +85,9 @@ async function AdminViolationsContent() {
 
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${meta.cls}`}>
+                      <Badge tone={meta.tone}>
                         {meta.text}
-                      </span>
+                      </Badge>
                       <Link
                         href={`/items/${row.id}`}
                         className="truncate font-medium text-ink hover:underline"

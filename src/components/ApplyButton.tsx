@@ -1,6 +1,10 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import Button from '@/components/ui/Button';
+import { Textarea } from '@/components/ui/Input';
+import { useToast } from '@/components/ui/Toast';
 
 export default function ApplyButton({
   itemId,
@@ -11,14 +15,14 @@ export default function ApplyButton({
   mode: string;
   isOwner: boolean;
 }) {
+  const router = useRouter();
+  const toast = useToast();
   const [showReason, setShowReason] = useState(false);
   const [reason, setReason] = useState('');
-  const [msg, setMsg] = useState('');
   const [loading, setLoading] = useState(false);
 
   async function submit(r: string) {
     setLoading(true);
-    setMsg('');
     try {
       const res = await fetch(`/api/items/${itemId}/applications`, {
         method: 'POST',
@@ -26,19 +30,19 @@ export default function ApplyButton({
         body: JSON.stringify({ reason: r }),
       });
       if (res.status === 401) {
-        window.location.href = `/login?next=/items/${itemId}`;
+        router.push(`/login?next=/items/${itemId}`);
         return;
       }
       const data = await res.json().catch(() => null);
       if (res.ok && data?.ok) {
         setShowReason(false);
         setReason('');
-        setMsg('已提交申请，等待对方处理');
+        toast.push({ tone: 'ok', title: '已提交申请', description: '等待对方处理' });
       } else {
-        setMsg(data?.message ?? '提交失败');
+        toast.push({ tone: 'danger', title: data?.message ?? '提交失败，请稍后重试' });
       }
     } catch {
-      setMsg('网络异常，请稍后重试');
+      toast.push({ tone: 'danger', title: '网络异常，请稍后重试' });
     } finally {
       setLoading(false);
     }
@@ -46,7 +50,7 @@ export default function ApplyButton({
 
   function onClick() {
     if (isOwner) {
-      setMsg('不能申领自己的物品');
+      toast.push({ tone: 'warn', title: '不能申领自己发布的物品' });
       return;
     }
     if (mode === 'donate') {
@@ -60,40 +64,32 @@ export default function ApplyButton({
 
   return (
     <div className="flex flex-1 flex-col gap-2">
-      {msg && <p className="text-sm text-ink-soft">{msg}</p>}
-
       {showReason && (
-        <div className="flex flex-col gap-2 rounded-card-sm bg-cream/50 p-3">
-          <label className="flex flex-col gap-1">
-            <span className="text-xs text-ink-soft">申请用途（捐赠物品必填）</span>
-            <textarea
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              rows={2}
-              maxLength={500}
-              placeholder="说明用途，如：新生入学需要这套教材"
-              className="rounded-card-sm border border-black/10 bg-panel px-2 py-1.5 text-sm outline-none focus:border-blush-deep"
-            />
-          </label>
-          <button
-            type="button"
+        <div className="flex flex-col gap-2 rounded-card-sm bg-sunken p-3">
+          <Textarea
+            label="申请用途"
+            hint="捐赠物品必填：说明给谁用、什么时候用"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            rows={2}
+            maxLength={500}
+            placeholder="例：新生入学需要这套教材"
+          />
+          <Button
+            size="sm"
             onClick={() => submit(reason.trim())}
-            disabled={loading || !reason.trim()}
-            className="rounded-card-sm bg-blush px-3 py-1.5 text-sm font-medium text-ink transition hover:bg-blush-deep disabled:opacity-50"
+            loading={loading}
+            loadingText="提交中…"
+            disabled={!reason.trim()}
           >
-            {loading ? '提交中…' : '提交申请'}
-          </button>
+            提交申请
+          </Button>
         </div>
       )}
 
-      <button
-        type="button"
-        onClick={onClick}
-        disabled={loading}
-        className="rounded-card bg-blush py-3 text-sm font-medium text-ink transition hover:bg-blush-deep disabled:opacity-50"
-      >
-        {loading ? '提交中…' : label}
-      </button>
+      <Button size="lg" block onClick={onClick} loading={loading} loadingText="提交中…">
+        {label}
+      </Button>
     </div>
   );
 }

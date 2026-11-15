@@ -7,6 +7,8 @@ import { categoryLabel, modeLabel } from '@/lib/constants';
 import FavoriteButton from '@/components/FavoriteButton';
 import ApplyButton from '@/components/ApplyButton';
 import MessageDrawer from '@/components/MessageDrawer';
+import Alert from '@/components/ui/Alert';
+import Badge from '@/components/ui/Badge';
 
 export const instant = false;
 
@@ -46,22 +48,20 @@ export default async function ItemDetailPage({
 
       {/* 审核状态只给本人和管理员看，其他同学看到的仍是一件正常物品 */}
       {item.violation_flag === 2 && (isOwner || user?.role === 'admin') && (
-        <div className="rounded-card-sm border border-amber-300/60 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          <span className="font-medium">待人工复核：</span>
+        <Alert tone="warn" title="待人工复核">
           AI 审核本轮未能给出结论，物品已正常上架，管理员会尽快复核。
           {item.violation_reason && (
-            <p className="mt-1 break-all text-xs text-amber-800/80">{item.violation_reason}</p>
+            <p className="mt-1 break-all text-xs text-warn/80">{item.violation_reason}</p>
           )}
-        </div>
+        </Alert>
       )}
       {item.violation_flag === 1 && (isOwner || user?.role === 'admin') && (
-        <div className="rounded-card-sm border border-red-300/60 bg-red-50 px-4 py-3 text-sm text-red-800">
-          <span className="font-medium">已下架：</span>
+        <Alert tone="danger" title="已下架">
           该物品经人工复核判定不符合平台规则，已从列表与搜索中移除。
           {item.violation_reason && (
-            <p className="mt-1 break-all text-xs text-red-700/80">{item.violation_reason}</p>
+            <p className="mt-1 break-all text-xs text-danger/80">{item.violation_reason}</p>
           )}
-        </div>
+        </Alert>
       )}
 
       <div className="grid gap-6 lg:grid-cols-2">
@@ -81,21 +81,9 @@ export default async function ItemDetailPage({
 
         <div className="flex flex-col gap-4 rounded-card-lg bg-panel p-6 shadow-soft">
           <div className="flex flex-wrap items-center gap-2">
-            <span
-              className={`rounded-full px-2.5 py-0.5 text-xs font-medium text-ink ${
-                isDonate ? 'bg-blush' : 'bg-sky'
-              }`}
-            >
-              {modeLabel(item.mode)}
-            </span>
-            <span className="rounded-full bg-panel px-2.5 py-0.5 text-xs text-ink-soft">
-              {categoryLabel(item.category)}
-            </span>
-            {item.condition_level && (
-              <span className="rounded-full bg-panel px-2.5 py-0.5 text-xs text-ink-soft">
-                {item.condition_level}
-              </span>
-            )}
+            <Badge tone={isDonate ? 'blush' : 'sky'}>{modeLabel(item.mode)}</Badge>
+            <Badge tone="neutral">{categoryLabel(item.category)}</Badge>
+            {item.condition_level && <Badge tone="neutral">{item.condition_level}</Badge>}
           </div>
 
           <h1 className="text-2xl font-semibold tracking-tight">{item.title}</h1>
@@ -119,7 +107,7 @@ export default async function ItemDetailPage({
             </div>
           )}
 
-          <div className="mt-auto border-t border-black/5 pt-4 text-sm text-ink-soft">
+          <div className="mt-auto border-t border-line pt-4 text-sm text-ink-soft">
             发起人：{item.owner_nickname}
             {item.owner_college ? ` · ${item.owner_college}` : ''}
             <span className="ml-3">{item.view_count} 次浏览</span>

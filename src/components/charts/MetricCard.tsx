@@ -74,7 +74,7 @@ export default function MetricCard({
 
   return (
     <div
-      className={`rounded-card-lg bg-gradient-to-br ${TONES[tone]} p-5 shadow-soft ring-1 ring-black/5`}
+      className={`rounded-card-lg bg-gradient-to-br ${TONES[tone]} p-5 shadow-soft ring-1 ring-line`}
     >
       <div className="text-xs font-medium text-ink-soft">{label}</div>
       <div className="mt-2 flex items-baseline gap-1">

@@ -61,14 +61,14 @@ export default async function LetterPage({ params }: { params: Promise<{ id: str
           <span className="text-[11px] tracking-[0.32em] text-ink-soft">
             校园闲置物资循环平台 · 电子感谢信
           </span>
-          <span className="h-px w-full bg-[#ece3d3]" />
+          <span className="h-px w-full bg-line-strong" />
         </header>
 
         <div className="mt-9 whitespace-pre-wrap text-[15.5px] leading-[2.15] tracking-[0.02em] text-ink sm:text-base">
           {letter.content}
         </div>
 
-        <footer className="mt-10 flex items-end justify-between gap-4 border-t border-[#f0e8d8] pt-4">
+        <footer className="mt-10 flex items-end justify-between gap-4 border-t border-paper-line pt-4">
           <p className="text-[11px] leading-5 text-ink-soft">
             本信依据平台捐赠记录生成，{anonymous ? '不公开受赠人的任何身份信息。' : '不公开受赠人学院与年级。'}
           </p>

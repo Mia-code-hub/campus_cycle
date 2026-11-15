@@ -3,7 +3,7 @@ import { getCurrentUser } from '@/server/auth';
 import { listItems } from '@/server/items';
 import { donateBoost } from '@/server/donate-boost';
 import ItemCard from '@/components/ItemCard';
-import EmptyState from '@/components/EmptyState';
+import EmptyState from '@/components/ui/EmptyState';
 
 export default function DonatePage() {
   return (
@@ -40,7 +40,7 @@ async function DonateContent() {
       )}
 
       {items.length === 0 ? (
-        <EmptyState title="暂时没有可捐赠的物资" actionHref="/" actionLabel="去逛逛" />
+        <EmptyState title="暂时没有可捐赠的物资" action={{ href: '/', label: '去逛逛' }} />
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
           {items.map((i) => (

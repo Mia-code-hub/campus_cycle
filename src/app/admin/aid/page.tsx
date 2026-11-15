@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation';
 import { getCurrentUser } from '@/server/auth';
 import { listAidApplications } from '@/server/aid';
 import AidReviewButton from '@/components/aid/AidReviewButton';
-import EmptyState from '@/components/EmptyState';
+import EmptyState from '@/components/ui/EmptyState';
 
 const AID_STATUS_LABEL: Record<string, string> = {
   pending: '待处理',

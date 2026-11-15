@@ -11,7 +11,7 @@ interface Props {
 /** 图表外壳：统一内边距、圆角与标题层级，四张图看起来才是一套 */
 export default function ChartCard({ title, hint, extra, children }: Props) {
   return (
-    <section className="min-w-0 rounded-card-lg bg-panel p-5 shadow-soft ring-1 ring-black/5">
+    <section className="min-w-0 rounded-card-lg bg-panel p-5 shadow-soft ring-1 ring-line">
       <div className="mb-3 flex items-start justify-between gap-3">
         <div>
           <h2 className="text-sm font-semibold tracking-tight text-ink">{title}</h2>

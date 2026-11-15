@@ -2,8 +2,8 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-
-type Phase = 'idle' | 'loading' | 'error';
+import Button from '@/components/ui/Button';
+import { useToast } from '@/components/ui/Toast';
 
 /**
  * 看板底部的「一键生成环保报告」。
@@ -12,13 +12,13 @@ type Phase = 'idle' | 'loading' | 'error';
  * 把失败也展示出来，比藏起来更接近「可审计」。
  */
 export default function ReportButton({ label = '一键生成环保报告' }: { label?: string }) {
-  const [phase, setPhase] = useState<Phase>('idle');
-  const [message, setMessage] = useState('');
+  const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const toast = useToast();
 
   async function onClick() {
-    setPhase('loading');
-    setMessage('');
+    if (loading) return;
+    setLoading(true);
     try {
       const res = await fetch('/api/ai/report', { method: 'POST' });
       const data = (await res.json().catch(() => ({}))) as {
@@ -27,35 +27,41 @@ export default function ReportButton({ label = '一键生成环保报告' }: { l
         verified?: boolean;
       };
       if (res.ok && data.id) {
+        toast.push({
+          tone: data.verified === false ? 'warn' : 'ok',
+          title: data.verified === false ? '报告已生成，但未通过校验' : '报告已生成',
+          description:
+            data.verified === false
+              ? '打开后只会看到校验说明，正文不会展示。'
+              : '正在打开报告页…',
+        });
         router.push(`/admin/report?id=${data.id}`);
         return;
       }
-      setPhase('error');
-      setMessage(data.message ?? '报告生成暂不可用，可先打印看板作为数据快照。');
+      toast.push({
+        tone: 'warn',
+        title: '报告没有生成',
+        description: data.message ?? '可先打印看板作为数据快照。',
+      });
     } catch {
-      setPhase('error');
-      setMessage('网络异常，报告没有生成，可先打印看板作为数据快照。');
+      toast.push({
+        tone: 'danger',
+        title: '网络异常',
+        description: '报告没有生成，可先打印看板作为数据快照。',
+      });
+    } finally {
+      setLoading(false);
     }
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-3">
-      <button
-        type="button"
-        onClick={onClick}
-        disabled={phase === 'loading'}
-        className="rounded-card-sm bg-blush px-4 py-2 text-sm font-medium text-ink shadow-soft transition hover:bg-blush-deep disabled:cursor-wait disabled:opacity-70 print:hidden"
-      >
-        {phase === 'loading' ? '正在生成…' : label}
-      </button>
-      <button
-        type="button"
-        onClick={() => window.print()}
-        className="rounded-card-sm px-3 py-2 text-sm text-ink-soft transition hover:bg-cream hover:text-ink print:hidden"
-      >
+    <div className="flex flex-wrap items-center gap-3 print:hidden">
+      <Button onClick={onClick} loading={loading} loadingText="AI 正在思考…">
+        {label}
+      </Button>
+      <Button variant="ghost" onClick={() => window.print()}>
         打印本页
-      </button>
-      {phase === 'error' && <span className="text-xs text-ink-soft">{message}</span>}
+      </Button>
     </div>
   );
 }

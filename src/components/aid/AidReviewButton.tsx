@@ -2,9 +2,12 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import Button from '@/components/ui/Button';
+import { useToast } from '@/components/ui/Toast';
 
 export default function AidReviewButton({ applicationId }: { applicationId: number }) {
   const router = useRouter();
+  const toast = useToast();
   const [loading, setLoading] = useState('');
   const [error, setError] = useState('');
 
@@ -19,6 +22,10 @@ export default function AidReviewButton({ applicationId }: { applicationId: numb
         body: JSON.stringify({ action }),
       });
       if (res.ok) {
+        toast.push({
+          tone: 'ok',
+          title: action === 'approve' ? '已通过帮扶资格' : '已驳回申请',
+        });
         router.refresh();
         return;
       }
@@ -33,23 +40,30 @@ export default function AidReviewButton({ applicationId }: { applicationId: numb
 
   return (
     <div className="flex items-center gap-2">
-      {error && <span className="text-xs text-red-600">{error}</span>}
-      <button
-        type="button"
+      {error && (
+        <span role="alert" className="text-xs text-danger">
+          {error}
+        </span>
+      )}
+      <Button
+        size="sm"
         onClick={() => act('approve')}
-        disabled={!!loading}
-        className="rounded-card-sm bg-blush px-3 py-1.5 text-sm font-medium text-ink transition hover:bg-blush-deep disabled:opacity-50"
+        loading={loading === 'approve'}
+        loadingText="处理中…"
+        disabled={!!loading && loading !== 'approve'}
       >
-        {loading === 'approve' ? '处理中…' : '通过'}
-      </button>
-      <button
-        type="button"
+        通过
+      </Button>
+      <Button
+        size="sm"
+        variant="secondary"
         onClick={() => act('reject')}
-        disabled={!!loading}
-        className="rounded-card-sm bg-panel px-3 py-1.5 text-sm text-ink transition hover:bg-cream disabled:opacity-50"
+        loading={loading === 'reject'}
+        loadingText="处理中…"
+        disabled={!!loading && loading !== 'reject'}
       >
-        {loading === 'reject' ? '处理中…' : '驳回'}
-      </button>
+        驳回
+      </Button>
     </div>
   );
 }

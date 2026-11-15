@@ -9,7 +9,8 @@ import {
   overallStat,
 } from '@/server/ai-logs';
 import { featureLabel, formatMs, formatPercent, isOkStatus, statusLabel } from '@/lib/ai-log-view';
-import EmptyState from '@/components/EmptyState';
+import EmptyState from '@/components/ui/EmptyState';
+import Badge, { type BadgeTone } from '@/components/ui/Badge';
 
 // 依赖 searchParams 做筛选，按请求渲染
 export const instant = false;
@@ -31,11 +32,12 @@ function buildHref(q: { feature?: string | null; status?: string | null; page?: 
   return s ? `/admin/ai-logs?${s}` : '/admin/ai-logs';
 }
 
-const STATUS_STYLE: Record<string, string> = {
-  ok: 'bg-emerald-100 text-emerald-700',
-  timeout: 'bg-amber-100 text-amber-800',
-  parse_error: 'bg-amber-100 text-amber-800',
-  api_error: 'bg-red-100 text-red-700',
+/** 状态 → 语义色。ok 绿、超时/解析失败黄、接口错误红，与留痕页图例一致 */
+const STATUS_TONE: Record<string, BadgeTone> = {
+  ok: 'ok',
+  timeout: 'warn',
+  parse_error: 'warn',
+  api_error: 'danger',
 };
 
 function prettyJson(raw: string | null): string | null {
@@ -111,7 +113,7 @@ export default async function AdminAiLogsPage({ searchParams }: { searchParams: 
         <div className="mt-3 overflow-x-auto">
           <table className="w-full min-w-[560px] text-left text-sm">
             <thead className="text-xs text-ink-soft">
-              <tr className="border-b border-black/5">
+              <tr className="border-b border-line">
                 <th className="py-2 pr-3 font-normal">功能</th>
                 <th className="py-2 pr-3 font-normal">轮次</th>
                 <th className="py-2 pr-3 font-normal">调用</th>
@@ -123,7 +125,7 @@ export default async function AdminAiLogsPage({ searchParams }: { searchParams: 
             </thead>
             <tbody>
               {stats.map((s) => (
-                <tr key={s.feature} className="border-b border-black/5 last:border-0">
+                <tr key={s.feature} className="border-b border-line last:border-0">
                   <td className="py-2 pr-3">
                     <Link
                       href={buildHref({ feature: s.feature, status: statusKey })}
@@ -138,7 +140,7 @@ export default async function AdminAiLogsPage({ searchParams }: { searchParams: 
                   <td className="py-2 pr-3 tabular-nums">
                     {s.ok}
                     {s.failed > 0 && (
-                      <span className="ml-1 text-[11px] text-amber-700">（失败 {s.failed}）</span>
+                      <span className="ml-1 text-[11px] text-warn">（失败 {s.failed}）</span>
                     )}
                   </td>
                   <td className="py-2 pr-3 tabular-nums">{formatPercent(s.successRate)}</td>
@@ -203,14 +205,13 @@ export default async function AdminAiLogsPage({ searchParams }: { searchParams: 
       {rows.length === 0 ? (
         <EmptyState
           title="还没有留痕记录。跑一次发布、搜索或感谢信，这里就会有数据。"
-          actionHref="/publish"
-          actionLabel="去发布一件"
+          action={{ href: '/publish', label: '去发布一件' }}
         />
       ) : (
         <div className="overflow-hidden rounded-card-lg bg-panel shadow-soft">
           <table className="w-full text-left text-sm">
             <thead className="text-xs text-ink-soft">
-              <tr className="border-b border-black/5">
+              <tr className="border-b border-line">
                 <th className="px-4 py-2.5 font-normal">时间</th>
                 <th className="px-2 py-2.5 font-normal">功能</th>
                 <th className="hidden px-2 py-2.5 font-normal sm:table-cell">模型</th>
@@ -221,7 +222,7 @@ export default async function AdminAiLogsPage({ searchParams }: { searchParams: 
             </thead>
             <tbody>
               {rows.map((row) => (
-                <tr key={row.id} className="border-b border-black/5 align-top last:border-0">
+                <tr key={row.id} className="border-b border-line align-top last:border-0">
                   <td className="px-4 py-3 text-xs text-ink-soft">
                     <div className="whitespace-nowrap">{row.created_at}</div>
                     <div className="text-[11px]">#{row.id}</div>
@@ -244,13 +245,9 @@ export default async function AdminAiLogsPage({ searchParams }: { searchParams: 
                   </td>
                   <td className="px-2 py-3 text-xs tabular-nums">{formatMs(row.latency_ms)}</td>
                   <td className="px-2 py-3">
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-[11px] ${
-                        STATUS_STYLE[row.status] ?? 'bg-panel text-ink-soft'
-                      }`}
-                    >
+                    <Badge tone={STATUS_TONE[row.status] ?? 'neutral'} size="sm">
                       {statusLabel(row.status)}
-                    </span>
+                    </Badge>
                   </td>
                   <td className="px-4 py-3">
                     <details className="group">

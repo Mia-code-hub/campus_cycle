@@ -10,6 +10,9 @@ import {
   normalizeDateParam,
 } from '@/lib/donation-ledger';
 import { CATEGORIES } from '@/lib/constants';
+import Badge from '@/components/ui/Badge';
+import Button from '@/components/ui/Button';
+import { Input, Select } from '@/components/ui/Input';
 
 // 捐赠台账：一件捐赠一行，给对账与公益材料用。
 // 导出走 /api/admin/donations/export，页面上的筛选条件原样带过去，看到什么就导出什么。
@@ -94,47 +97,36 @@ async function LedgerContent({ searchParams }: { searchParams: SearchParams }) {
       <form
         action="/admin/donations"
         method="get"
-        className="flex flex-wrap items-end gap-3 rounded-card bg-cream/60 px-4 py-3 text-sm ring-1 ring-black/5"
+        aria-label="台账筛选"
+        className="flex flex-wrap items-end gap-3 rounded-card bg-sunken px-4 py-3 text-sm ring-1 ring-line"
       >
-        <label className="flex flex-col gap-1 text-[11px] text-ink-soft">
-          起始日期
-          <input
-            type="date"
-            name="from"
-            defaultValue={from ?? ''}
-            className="rounded-card-sm bg-panel px-2 py-1 text-sm text-ink ring-1 ring-black/10"
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-[11px] text-ink-soft">
-          截止日期
-          <input
-            type="date"
-            name="to"
-            defaultValue={to ?? ''}
-            className="rounded-card-sm bg-panel px-2 py-1 text-sm text-ink ring-1 ring-black/10"
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-[11px] text-ink-soft">
-          类别
-          <select
-            name="category"
-            defaultValue={category ?? ''}
-            className="rounded-card-sm bg-panel px-2 py-1 text-sm text-ink ring-1 ring-black/10"
-          >
-            <option value="">全部类别</option>
-            {CATEGORIES.map((c) => (
-              <option key={c.value} value={c.value}>
-                {c.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <button
-          type="submit"
-          className="rounded-card-sm bg-panel px-3 py-1.5 text-ink shadow-soft transition hover:bg-cream"
-        >
+        <Input
+          label="起始日期"
+          type="date"
+          name="from"
+          defaultValue={from ?? ''}
+          wrapperClassName="w-36"
+          className="py-1"
+        />
+        <Input
+          label="截止日期"
+          type="date"
+          name="to"
+          defaultValue={to ?? ''}
+          wrapperClassName="w-36"
+          className="py-1"
+        />
+        <Select label="类别" name="category" defaultValue={category ?? ''} wrapperClassName="w-40" className="py-1">
+          <option value="">全部类别</option>
+          {CATEGORIES.map((c) => (
+            <option key={c.value} value={c.value}>
+              {c.label}
+            </option>
+          ))}
+        </Select>
+        <Button type="submit" variant="secondary" size="sm">
           筛选
-        </button>
+        </Button>
         {(from || to || category) && (
           <Link href="/admin/donations" className="px-2 py-1.5 text-xs text-ink-soft hover:text-ink">
             清空条件
@@ -151,7 +143,7 @@ async function LedgerContent({ searchParams }: { searchParams: SearchParams }) {
         <div className="overflow-x-auto rounded-card-lg bg-panel shadow-soft">
           <table className="w-full min-w-[720px] text-left text-sm">
             <thead className="text-xs text-ink-soft">
-              <tr className="border-b border-black/5">
+              <tr className="border-b border-line">
                 <th className="px-4 py-2.5 font-normal">#</th>
                 <th className="px-2 py-2.5 font-normal">交割时间</th>
                 <th className="px-2 py-2.5 font-normal">物品</th>
@@ -164,7 +156,7 @@ async function LedgerContent({ searchParams }: { searchParams: SearchParams }) {
             </thead>
             <tbody>
               {rows.map((r) => (
-                <tr key={r.id} className="border-b border-black/5 align-top last:border-0">
+                <tr key={r.id} className="border-b border-line align-top last:border-0">
                   <td className="px-4 py-3 text-xs text-ink-soft">{r.id}</td>
                   <td className="px-2 py-3 text-xs text-ink-soft">
                     <div className="whitespace-nowrap">{r.donatedAt.slice(0, 16)}</div>
@@ -189,15 +181,10 @@ async function LedgerContent({ searchParams }: { searchParams: SearchParams }) {
                   </td>
                   <td className="px-2 py-3">
                     {r.letterId ? (
-                      <Link
-                        href={`/letters/${r.letterId}`}
-                        className={`rounded-full px-2 py-0.5 text-[11px] ${
-                          r.letterSource === 'ai'
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : 'bg-amber-100 text-amber-800'
-                        }`}
-                      >
-                        {r.letterSource === 'ai' ? 'AI 生成' : '模板兜底'}
+                      <Link href={`/letters/${r.letterId}`} className="inline-block">
+                        <Badge tone={r.letterSource === 'ai' ? 'ok' : 'warn'} size="sm">
+                          {r.letterSource === 'ai' ? 'AI 生成' : '模板兜底'}
+                        </Badge>
                       </Link>
                     ) : (
                       <span className="text-[11px] text-ink-soft">未生成</span>

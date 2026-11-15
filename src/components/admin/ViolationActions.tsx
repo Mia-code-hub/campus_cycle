@@ -2,6 +2,9 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import Button from '@/components/ui/Button';
+import Modal from '@/components/ui/Modal';
+import { useToast } from '@/components/ui/Toast';
 
 export default function ViolationActions({
   itemId,
@@ -12,8 +15,10 @@ export default function ViolationActions({
   flag: number;
 }) {
   const router = useRouter();
+  const toast = useToast();
   const [loading, setLoading] = useState('');
   const [error, setError] = useState('');
+  const [confirmRemove, setConfirmRemove] = useState(false);
 
   async function act(action: 'remove' | 'restore') {
     if (loading) return;
@@ -26,6 +31,11 @@ export default function ViolationActions({
         body: JSON.stringify({ action }),
       });
       if (res.ok) {
+        setConfirmRemove(false);
+        toast.push({
+          tone: 'ok',
+          title: action === 'remove' ? '已下架该物品' : '已解除标记',
+        });
         router.refresh();
         return;
       }
@@ -40,25 +50,58 @@ export default function ViolationActions({
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {error && <span className="text-xs text-red-600">{error}</span>}
-      {flag !== 1 && (
-        <button
-          type="button"
-          onClick={() => act('remove')}
-          disabled={!!loading}
-          className="rounded-card-sm bg-red-500/90 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-red-600 disabled:opacity-50"
-        >
-          {loading === 'remove' ? '处理中…' : '人工下架'}
-        </button>
+      {error && (
+        <span role="alert" className="text-xs text-danger">
+          {error}
+        </span>
       )}
-      <button
-        type="button"
+      {flag !== 1 && (
+        <Button
+          size="sm"
+          variant="danger"
+          onClick={() => setConfirmRemove(true)}
+          disabled={!!loading}
+        >
+          人工下架
+        </Button>
+      )}
+      <Button
+        size="sm"
+        variant="secondary"
         onClick={() => act('restore')}
-        disabled={!!loading}
-        className="rounded-card-sm bg-panel px-3 py-1.5 text-sm text-ink transition hover:bg-cream disabled:opacity-50"
+        loading={loading === 'restore'}
+        loadingText="处理中…"
+        disabled={!!loading && loading !== 'restore'}
       >
-        {loading === 'restore' ? '处理中…' : flag === 1 ? '恢复上架' : '确认合规，解除标记'}
-      </button>
+        {flag === 1 ? '恢复上架' : '确认合规，解除标记'}
+      </Button>
+
+      <Modal
+        open={confirmRemove}
+        onClose={() => setConfirmRemove(false)}
+        title="确认下架这件物品？"
+        description="下架后物品会立刻从列表与搜索中消失，发布者会看到下架原因。"
+        size="sm"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setConfirmRemove(false)} disabled={!!loading}>
+              再看看
+            </Button>
+            <Button
+              variant="danger"
+              onClick={() => act('remove')}
+              loading={loading === 'remove'}
+              loadingText="下架中…"
+            >
+              确认下架
+            </Button>
+          </>
+        }
+      >
+        <p className="text-sm leading-6 text-ink-soft">
+          信息不够完整的话，可以先恢复上架让对方补充描述。下架之后仍可通过「恢复上架」撤销。
+        </p>
+      </Modal>
     </div>
   );
 }

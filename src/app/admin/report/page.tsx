@@ -1,3 +1,5 @@
+import Alert from '@/components/ui/Alert';
+import Badge from '@/components/ui/Badge';
 import Link from 'next/link';
 import { Suspense } from 'react';
 import { redirect } from 'next/navigation';
@@ -77,8 +79,8 @@ async function ReportContent({ searchParams }: { searchParams: SearchParams }) {
         </div>
       </div>
 
-      <article className="report-sheet flex flex-col gap-6 rounded-card-lg bg-panel px-6 py-8 shadow-soft ring-1 ring-black/5 print:gap-4 print:rounded-none print:px-0 print:py-0 print:shadow-none print:ring-0">
-        <header className="border-b border-black/10 pb-4">
+      <article className="report-sheet flex flex-col gap-6 rounded-card-lg bg-panel px-6 py-8 shadow-soft ring-1 ring-line print:gap-4 print:rounded-none print:px-0 print:py-0 print:shadow-none print:ring-0">
+        <header className="border-b border-line-strong pb-4">
           <h1 className="text-xl font-semibold tracking-tight">{report.title}</h1>
           <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-ink-soft">
             <span>数据截至 {payload.asOfTime ?? report.created_at}</span>
@@ -89,13 +91,9 @@ async function ReportContent({ searchParams }: { searchParams: SearchParams }) {
             <span aria-hidden>·</span>
             <span>{report.char_count} 字</span>
             <span aria-hidden>·</span>
-            <span
-              className={`rounded-full px-2 py-0.5 text-[10px] ${
-                verified ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-700'
-              }`}
-            >
+            <Badge tone={verified ? 'ok' : 'danger'} size="xs">
               {verified ? '数字校验通过' : '数字校验未通过'}
-            </span>
+            </Badge>
           </p>
         </header>
 
@@ -123,7 +121,7 @@ async function ReportContent({ searchParams }: { searchParams: SearchParams }) {
           </p>
           <dl className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
             {(payload.keyFigures ?? []).map((f) => (
-              <div key={f.label} className="rounded-card-sm px-3 py-2 ring-1 ring-black/10">
+              <div key={f.label} className="rounded-card-sm px-3 py-2 ring-1 ring-line-strong">
                 <dt className="text-[11px] text-ink-soft">{f.label}</dt>
                 <dd className="mt-0.5 text-base font-medium tabular-nums">
                   {f.value}
@@ -135,19 +133,19 @@ async function ReportContent({ searchParams }: { searchParams: SearchParams }) {
         </section>
 
         <section className="grid break-inside-avoid gap-4 sm:grid-cols-2">
-          <figure className="rounded-card-sm p-3 ring-1 ring-black/10">
+          <figure className="rounded-card-sm p-3 ring-1 ring-line-strong">
             <figcaption className="mb-2 text-xs text-ink-soft">
               月度完成流转（按发布月份归集）
             </figcaption>
             <TrendChart data={snapshot.charts?.trend ?? []} />
           </figure>
-          <figure className="rounded-card-sm p-3 ring-1 ring-black/10">
+          <figure className="rounded-card-sm p-3 ring-1 ring-line-strong">
             <figcaption className="mb-2 text-xs text-ink-soft">类别分布（占比按完成流转件数）</figcaption>
             <CategoryDonut data={snapshot.charts?.categories ?? []} />
           </figure>
         </section>
 
-        <footer className="border-t border-black/10 pt-3 text-[11px] leading-6 text-ink-soft">
+        <footer className="border-t border-line-strong pt-3 text-[11px] leading-6 text-ink-soft">
           <p>
             口径说明：已完成流转＝转售成交＋公益捐赠，不含下架与违规物品；折算重量按件折算后求和，
             减碳量＝折算重量 × 2.1，节约纸张按类目纸张占比折算，以上均为<strong>参考估算</strong>，非实测。
@@ -177,14 +175,13 @@ function FailureCard({
   source: string;
 }) {
   return (
-    <section className="rounded-card bg-red-50 px-4 py-4 ring-1 ring-red-200">
-      <h2 className="text-sm font-semibold text-red-800">校验未通过，正文不展示</h2>
-      <p className="mt-1 text-xs leading-6 text-red-700">
+    <Alert tone="danger" title="校验未通过，正文不展示">
+      <p className="text-xs leading-6">
         模型这次写的正文里出现了统计数据里没有的数字，或字数不在 600-900 之间。
         按规则这份正文作废——它已留档（报告 #{reportId}），但不会出现在任何对外的页面与打印件上。
       </p>
       {issues.length > 0 && (
-        <ul className="mt-2 flex list-disc flex-col gap-1 pl-5 text-xs text-red-700">
+        <ul className="mt-2 flex list-disc flex-col gap-1 pl-5 text-xs text-danger">
           {issues.map((s) => (
             <li key={s}>{s}</li>
           ))}
@@ -192,24 +189,24 @@ function FailureCard({
       )}
       {unmatched.length > 0 && (
         <div className="mt-3 flex flex-wrap items-center gap-1.5">
-          <span className="text-[11px] text-red-700">未命中白名单：</span>
+          <span className="text-[11px] text-danger">未命中白名单：</span>
           {unmatched.slice(0, 12).map((u) => (
             <code
               key={u.value}
-              className="rounded bg-white px-1.5 py-0.5 text-[11px] text-red-800 ring-1 ring-red-200"
+              className="rounded bg-raise px-1.5 py-0.5 text-[11px] text-danger ring-1 ring-danger-line"
             >
               {u.raw}
             </code>
           ))}
           {unmatched.length > 12 && (
-            <span className="text-[11px] text-red-700">等 {unmatched.length} 个</span>
+            <span className="text-[11px] text-danger">等 {unmatched.length} 个</span>
           )}
         </div>
       )}
       <div className="mt-3 print:hidden">
         <details>
-          <summary className="cursor-pointer text-[11px] text-red-700">展开本次送进模型的统计数据</summary>
-          <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-card-sm bg-white/70 p-3 text-[11px] leading-6 text-ink">
+          <summary className="cursor-pointer text-[11px] text-danger">展开本次送进模型的统计数据</summary>
+          <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-card-sm bg-raise/80 p-3 text-[11px] leading-6 text-ink">
             {source}
           </pre>
         </details>
@@ -217,7 +214,7 @@ function FailureCard({
       <div className="mt-3">
         <ReportButton label="再生成一份" />
       </div>
-    </section>
+    </Alert>
   );
 }
 
@@ -251,7 +248,7 @@ function ReportList() {
         <div className="overflow-hidden rounded-card-lg bg-panel shadow-soft">
           <table className="w-full text-left text-sm">
             <thead className="text-xs text-ink-soft">
-              <tr className="border-b border-black/5">
+              <tr className="border-b border-line">
                 <th className="px-4 py-2.5 font-normal">#</th>
                 <th className="px-2 py-2.5 font-normal">生成时间</th>
                 <th className="px-2 py-2.5 font-normal">字数</th>
@@ -261,7 +258,7 @@ function ReportList() {
             </thead>
             <tbody>
               {rows.map((r) => (
-                <tr key={r.id} className="border-b border-black/5 last:border-0">
+                <tr key={r.id} className="border-b border-line last:border-0">
                   <td className="px-4 py-3">
                     <Link href={`/admin/report?id=${r.id}`} className="text-ink hover:underline">
                       #{r.id}
@@ -273,8 +270,8 @@ function ReportList() {
                     <span
                       className={`rounded-full px-2 py-0.5 text-[11px] ${
                         r.verify_status === 'pass'
-                          ? 'bg-emerald-100 text-emerald-800'
-                          : 'bg-red-100 text-red-700'
+                          ? 'bg-ok-soft text-ok'
+                          : 'bg-danger-soft text-danger'
                       }`}
                     >
                       {r.verify_status === 'pass' ? '通过' : '未通过'}

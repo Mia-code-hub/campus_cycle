@@ -16,7 +16,7 @@ import {
   APPLICATION_STATUS_LABEL,
 } from '@/lib/constants';
 import ItemCard from '@/components/ItemCard';
-import EmptyState from '@/components/EmptyState';
+import EmptyState from '@/components/ui/EmptyState';
 import ApplicationActions from '@/components/ApplicationActions';
 import LetterAnonymityToggle from '@/components/letters/LetterAnonymityToggle';
 
@@ -94,7 +94,7 @@ async function MeContent({
 
       <LetterAnonymityToggle initial={getLetterAnonymous(user.id)} />
 
-      <div className="flex gap-1 border-b border-black/5">
+      <div className="flex gap-1 border-b border-line">
         {TABS.map((t) => (
           <Link
             key={t.key}
@@ -130,7 +130,7 @@ function StatCard({ label, value }: { label: string; value: number }) {
 function PostedTab({ userId }: { userId: number }) {
   const items = getMyItems(userId);
   if (items.length === 0) {
-    return <EmptyState title="还没有发布过物品" actionHref="/publish" actionLabel="去发布" />;
+    return <EmptyState title="还没有发布过物品" action={{ href: '/publish', label: '去发布' }} />;
   }
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
@@ -172,7 +172,7 @@ function PostedTab({ userId }: { userId: number }) {
 function FavTab({ userId }: { userId: number }) {
   const items = getMyFavorites(userId);
   if (items.length === 0) {
-    return <EmptyState title="还没有收藏，去逛逛" actionHref="/" actionLabel="去逛逛" />;
+    return <EmptyState title="还没有收藏，去逛逛" action={{ href: '/', label: '去逛逛' }} />;
   }
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
@@ -216,7 +216,7 @@ function ReceivedTab({ userId }: { userId: number }) {
 function AppliedTab({ userId }: { userId: number }) {
   const apps = getMyApplications(userId);
   if (apps.length === 0) {
-    return <EmptyState title="还没有申领过物品" actionHref="/" actionLabel="去逛逛" />;
+    return <EmptyState title="还没有申领过物品" action={{ href: '/', label: '去逛逛' }} />;
   }
   return (
     <div className="flex flex-col gap-3">

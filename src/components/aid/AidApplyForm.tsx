@@ -2,9 +2,15 @@
 
 import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
+import Alert from '@/components/ui/Alert';
+import Button from '@/components/ui/Button';
+import Card from '@/components/ui/Card';
+import { Textarea } from '@/components/ui/Input';
+import { useToast } from '@/components/ui/Toast';
 
 export default function AidApplyForm() {
   const router = useRouter();
+  const toast = useToast();
   const [reason, setReason] = useState('');
   const [proofNote, setProofNote] = useState('');
   const [error, setError] = useState('');
@@ -23,6 +29,7 @@ export default function AidApplyForm() {
       });
       const data = await res.json().catch(() => null);
       if (res.ok && data?.ok) {
+        toast.push({ tone: 'ok', title: '申请已提交', description: '管理员审核后会通知你。' });
         router.refresh();
         return;
       }
@@ -35,39 +42,40 @@ export default function AidApplyForm() {
   }
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-4 rounded-card-lg bg-panel p-6 shadow-soft">
-      <label className="flex flex-col gap-1.5">
-        <span className="text-sm text-ink-soft">申请说明（至少 20 字）</span>
-        <textarea
+    <Card padding="xl" className="flex flex-col gap-4">
+      <form onSubmit={onSubmit} aria-label="帮扶资格申请" className="flex flex-col gap-4">
+        <Textarea
+          label="申请说明"
+          hint="至少 20 字，简要说明实际困难，便于管理员审核"
           value={reason}
           onChange={(e) => setReason(e.target.value)}
           rows={4}
           maxLength={500}
-          placeholder="简要说明你的实际困难，便于管理员审核…"
-          className="rounded-card-sm border border-black/10 bg-cream/50 px-3 py-2 text-sm outline-none focus:border-blush-deep"
+          required
+          placeholder="例：新生入学，家里暂时无法负担教材与生活用品的开销…"
         />
-      </label>
-      <label className="flex flex-col gap-1.5">
-        <span className="text-sm text-ink-soft">补充说明（选填）</span>
-        <textarea
+        <Textarea
+          label="补充说明（选填）"
+          hint="Demo 不要求上传真实证件，简单说明即可"
           value={proofNote}
           onChange={(e) => setProofNote(e.target.value)}
           rows={2}
           maxLength={500}
-          placeholder="Demo 不要求上传真实证件，可简单说明"
-          className="rounded-card-sm border border-black/10 bg-cream/50 px-3 py-2 text-sm outline-none focus:border-blush-deep"
+          placeholder="可以不填"
         />
-      </label>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <Alert tone="danger" title="提交失败">{error}</Alert>}
 
-      <button
-        type="submit"
-        disabled={loading || reason.trim().length < 20}
-        className="rounded-card bg-blush py-2.5 text-sm font-medium text-ink transition hover:bg-blush-deep disabled:opacity-50"
-      >
-        {loading ? '提交中…' : '提交申请'}
-      </button>
-    </form>
+        <Button
+          type="submit"
+          size="lg"
+          loading={loading}
+          loadingText="提交中…"
+          disabled={reason.trim().length < 20}
+        >
+          提交申请
+        </Button>
+      </form>
+    </Card>
   );
 }

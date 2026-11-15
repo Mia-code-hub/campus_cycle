@@ -1,28 +1,33 @@
 import Link from 'next/link';
 import { categoryLabel, modeLabel } from '@/lib/constants';
 import type { ItemSummary } from '@/server/items';
+import Badge from '@/components/ui/Badge';
 
 export default function ItemCard({
   item,
   matchPercent,
 }: {
   item: ItemSummary;
-  /** 语义检索结果传入 0-1 的相似度，右上角显示百分比并让位给匹配度（搜索场景不显示收藏） */
+  /** 语义检索结果传入 0-1 的相似度，右上角显示百分比并让位给匹配度 */
   matchPercent?: number | null;
 }) {
   const isDonate = item.mode === 'donate';
   const hasMatch = typeof matchPercent === 'number' && Number.isFinite(matchPercent);
 
   return (
+    // 整张卡只保留一个可聚焦元素（链接）。之前里面还套了个没有事件的「收藏」按钮，
+    // 既是嵌套交互元素（读屏会念出两个控件），又点了没反应，属于假按钮，已删除。
     <Link
       href={`/items/${item.id}`}
-      className="group block overflow-hidden rounded-card bg-panel shadow-soft transition duration-200 hover:-translate-y-0.5 hover:shadow-lift"
+      aria-label={`${item.title}，${modeLabel(item.mode)}，${isDonate ? '免费' : `¥${item.price}`}`}
+      className="group block overflow-hidden rounded-card bg-panel shadow-soft ring-1 ring-line transition duration-200 hover:-translate-y-0.5 hover:shadow-lift"
     >
-      <div className="relative aspect-[4/3] w-full overflow-hidden bg-cream/70">
+      <div className="relative aspect-[4/3] w-full overflow-hidden bg-sunken">
         {item.image_path ? (
           <img
             src={item.image_path}
-            alt={item.title}
+            alt={`${item.title} 的实物照片`}
+            loading="lazy"
             className="h-full w-full object-cover transition duration-200 group-hover:scale-105"
           />
         ) : (
@@ -31,38 +36,18 @@ export default function ItemCard({
           </div>
         )}
 
-        <span
-          className={`absolute left-2 top-2 rounded-full px-2.5 py-0.5 text-xs font-medium text-ink ${
-            isDonate ? 'bg-blush' : 'bg-sky'
-          }`}
+        <Badge
+          tone={isDonate ? 'blush' : 'sky'}
+          size="md"
+          className="absolute left-2 top-2 shadow-soft"
         >
           {modeLabel(item.mode)}
-        </span>
+        </Badge>
 
-        {hasMatch ? (
-          <span className="absolute right-2 top-2 rounded-full bg-ink/75 px-2 py-0.5 text-[11px] font-medium text-white">
+        {hasMatch && (
+          <span className="absolute right-2 top-2 rounded-full bg-ink/75 px-2 py-0.5 text-[11px] font-medium text-raise">
             {Math.round((matchPercent as number) * 100)}% 匹配
           </span>
-        ) : (
-          <button
-            type="button"
-            aria-label="收藏"
-            className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-white/80 text-ink-soft transition hover:text-blush-deep"
-          >
-            <svg
-              viewBox="0 0 24 24"
-              width="16"
-              height="16"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-            </svg>
-          </button>
         )}
       </div>
 

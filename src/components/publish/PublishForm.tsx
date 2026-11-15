@@ -4,6 +4,11 @@ import { useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { CATEGORIES, CONDITIONS } from '@/lib/constants';
 import { aiEditedCode, badgeFor, type AiFill } from '@/lib/publish-ai';
+import { readPaintTokens } from '@/lib/ui/tokens';
+import Alert from '@/components/ui/Alert';
+import Button from '@/components/ui/Button';
+import { Input, Textarea } from '@/components/ui/Input';
+import { Skeleton, SkeletonText } from '@/components/ui/Skeleton';
 
 const ALLOWED_EXT = ['jpg', 'jpeg', 'png', 'webp'];
 const ALLOWED_MIME = ['image/jpeg', 'image/png', 'image/webp'];
@@ -63,7 +68,8 @@ function compressToDataUrl(file: File): Promise<string | null> {
         resolve(null);
         return;
       }
-      ctx.fillStyle = '#fff';
+      // 半透明 PNG 压成 JPEG 会变黑底，先铺一层不透明底色（取主题的抬起面）
+      ctx.fillStyle = readPaintTokens().raise;
       ctx.fillRect(0, 0, w, h);
       ctx.drawImage(img, 0, 0, w, h);
       resolve(canvas.toDataURL('image/jpeg', 0.8));
@@ -74,6 +80,13 @@ function compressToDataUrl(file: File): Promise<string | null> {
     };
     img.src = url;
   });
+}
+
+/** 选项芯片：选中给品牌色，未选中给下沉底，aria-pressed 同步给读屏 */
+function chipClass(active: boolean, tone: 'blush' | 'sky'): string {
+  if (!active) return 'rounded-full bg-sunken px-4 py-1.5 text-sm text-ink-soft transition hover:bg-line hover:text-ink';
+  const activeTone = tone === 'blush' ? 'bg-blush' : 'bg-sky';
+  return `rounded-full px-4 py-1.5 text-sm font-medium transition ${activeTone} text-ink`;
 }
 
 function FieldBadge({ state }: { state: 'AI' | '已修改' | null }) {
@@ -312,9 +325,9 @@ export default function PublishForm() {
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-8 px-6 py-10 lg:flex-row">
       <form onSubmit={onSubmit} className="flex flex-1 flex-col gap-6">
-        <div className="flex flex-wrap items-center gap-2">
+        <ol aria-label="发布步骤" className="flex flex-wrap items-center gap-2">
           {STEPS.map((label, i) => (
-            <div key={label} className="flex items-center gap-2">
+            <li key={label} className="flex items-center gap-2" aria-current={i + 1 === step ? 'step' : undefined}>
               <span
                 className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-medium ${
                   i + 1 <= step ? 'bg-blush text-ink' : 'bg-panel text-ink-soft'
@@ -325,20 +338,20 @@ export default function PublishForm() {
               <span className={`text-sm ${i + 1 <= step ? 'text-ink' : 'text-ink-soft'}`}>
                 {label}
               </span>
-              {i < STEPS.length - 1 && <span className="mx-1 h-px w-6 bg-black/10" />}
-            </div>
+              {i < STEPS.length - 1 && <span className="mx-1 h-px w-6 bg-line-strong" aria-hidden="true" />}
+            </li>
           ))}
-        </div>
+        </ol>
 
         {error && (
-          <p className="rounded-card-sm bg-blush/20 px-4 py-2.5 text-sm text-red-600" role="alert">
+          <Alert tone="danger" title="还没有发布成功">
             {error}
-          </p>
+          </Alert>
         )}
 
         {step === 1 && (
           <div className="flex flex-col gap-4">
-            <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-card-lg border-2 border-dashed border-black/10 bg-panel p-8 text-center transition hover:border-blush">
+            <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-card-lg border-2 border-dashed border-line-strong bg-panel p-8 text-center transition hover:border-blush">
               <input
                 ref={fileInputRef}
                 type="file"
@@ -362,17 +375,16 @@ export default function PublishForm() {
               )}
             </label>
 
-            <label className="flex flex-col gap-1.5">
-              <span className="text-sm text-ink-soft">一句话描述你的物品</span>
-              <textarea
-                value={desc}
-                onChange={(e) => setDesc(e.target.value)}
-                rows={3}
-                maxLength={200}
-                placeholder="例：高数上下册，九成新，笔记齐全"
-                className="rounded-card-sm border border-black/10 bg-panel px-3 py-2 text-sm outline-none focus:border-blush-deep"
-              />
-            </label>
+            <Textarea
+              label="一句话描述你的物品"
+              hint="写清是什么、几成新、有没有笔记或配件，AI 识别和同学判断都用得上"
+              value={desc}
+              onChange={(e) => setDesc(e.target.value)}
+              rows={3}
+              maxLength={200}
+              required
+              placeholder="例：高数上下册，九成新，笔记齐全"
+            />
           </div>
         )}
 
@@ -380,18 +392,15 @@ export default function PublishForm() {
           <div className="flex flex-col gap-4">
             <div className="flex flex-col gap-2 rounded-card-lg bg-cream/60 px-4 py-3">
               <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
+                <Button
+                  variant="soft"
                   onClick={onAiFill}
-                  disabled={aiLoading || !desc.trim()}
-                  className={`rounded-card px-4 py-2 text-sm font-medium transition ${
-                    aiLoading
-                      ? 'cursor-wait bg-lilac/40 text-ink'
-                      : 'bg-lilac/40 text-ink hover:bg-lilac/60 disabled:opacity-50'
-                  }`}
+                  loading={aiLoading}
+                  loadingText="AI 正在思考…"
+                  disabled={!desc.trim()}
                 >
-                  {aiLoading ? 'AI 正在识别…' : 'AI 帮我完善'}
-                </button>
+                  AI 帮我完善
+                </Button>
                 {aiNotice && <span className="text-xs text-ink-soft">{aiNotice}</span>}
               </div>
               <p className="text-xs leading-relaxed text-ink-soft">
@@ -403,10 +412,16 @@ export default function PublishForm() {
             </div>
 
             {aiLoading && (
-              <div className="flex flex-col gap-3 rounded-card-lg bg-panel p-4" aria-busy="true">
-                <div className="h-8 w-1/2 animate-pulse rounded-card bg-cream" />
-                <div className="h-8 w-2/3 animate-pulse rounded-card bg-cream" />
-                <div className="h-20 w-full animate-pulse rounded-card bg-cream" />
+              <div
+                role="status"
+                aria-live="polite"
+                className="flex flex-col gap-3 rounded-card-lg bg-panel p-4"
+              >
+                <span className="sr-only">AI 正在生成标题、文案与参考价</span>
+                <Skeleton className="h-8 w-1/2" />
+                <Skeleton className="h-8 w-2/3" />
+                <Skeleton className="h-20 w-full" />
+                <SkeletonText lines={2} />
               </div>
             )}
 
@@ -415,17 +430,14 @@ export default function PublishForm() {
                 类别
                 <FieldBadge state={badgeFor(aiFill, current, 'category')} />
               </span>
-              <div className="flex flex-wrap gap-2">
+              <div role="group" aria-label="选择类别" className="flex flex-wrap gap-2">
                 {CATEGORIES.map((c) => (
                   <button
                     key={c.value}
                     type="button"
                     onClick={() => setCategory(c.value)}
-                    className={`rounded-full px-4 py-1.5 text-sm transition ${
-                      category === c.value
-                        ? 'bg-blush text-ink'
-                        : 'bg-panel text-ink-soft hover:bg-cream'
-                    }`}
+                    aria-pressed={category === c.value}
+                    className={chipClass(category === c.value, 'blush')}
                   >
                     {c.label}
                   </button>
@@ -438,17 +450,14 @@ export default function PublishForm() {
                 成色
                 <FieldBadge state={badgeFor(aiFill, current, 'condition')} />
               </span>
-              <div className="flex flex-wrap gap-2">
+              <div role="group" aria-label="选择成色" className="flex flex-wrap gap-2">
                 {CONDITIONS.map((c) => (
                   <button
                     key={c}
                     type="button"
                     onClick={() => setCondition(c)}
-                    className={`rounded-full px-4 py-1.5 text-sm transition ${
-                      condition === c
-                        ? 'bg-sky text-ink'
-                        : 'bg-panel text-ink-soft hover:bg-cream'
-                    }`}
+                    aria-pressed={condition === c}
+                    className={chipClass(condition === c, 'sky')}
                   >
                     {c}
                   </button>
@@ -456,49 +465,32 @@ export default function PublishForm() {
               </div>
             </div>
 
-            <label className="flex flex-col gap-1.5">
-              <span className="flex items-center gap-1.5 text-sm text-ink-soft">
-                标题
-                <FieldBadge state={badgeFor(aiFill, current, 'title')} />
-              </span>
-              <input
-                type="text"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                maxLength={50}
-                placeholder="AI 可自动生成，也可手动填写"
-                className="rounded-card-sm border border-black/10 bg-panel px-3 py-2 text-sm outline-none focus:border-blush-deep"
-              />
-            </label>
+            <Input
+              label="标题"
+              badge={<FieldBadge state={badgeFor(aiFill, current, 'title')} />}
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              maxLength={50}
+              placeholder="AI 可自动生成，也可手动填写"
+            />
 
-            <label className="flex flex-col gap-1.5">
-              <span className="flex items-center gap-1.5 text-sm text-ink-soft">
-                转让文案
-                <FieldBadge state={badgeFor(aiFill, current, 'aiDesc')} />
-              </span>
-              <textarea
-                value={aiDesc}
-                onChange={(e) => setAiDesc(e.target.value)}
-                rows={3}
-                maxLength={200}
-                placeholder="AI 可自动生成，也可手动填写"
-                className="rounded-card-sm border border-black/10 bg-panel px-3 py-2 text-sm outline-none focus:border-blush-deep"
-              />
-            </label>
+            <Textarea
+              label="转让文案"
+              badge={<FieldBadge state={badgeFor(aiFill, current, 'aiDesc')} />}
+              value={aiDesc}
+              onChange={(e) => setAiDesc(e.target.value)}
+              rows={3}
+              maxLength={200}
+              placeholder="AI 可自动生成，也可手动填写"
+            />
 
-            <label className="flex flex-col gap-1.5">
-              <span className="flex items-center gap-1.5 text-sm text-ink-soft">
-                标签
-                <FieldBadge state={badgeFor(aiFill, current, 'tags')} />
-              </span>
-              <input
-                type="text"
-                value={tags.join('、')}
-                onChange={(e) => setTags(e.target.value.split(/[，,、]/).filter(Boolean))}
-                placeholder="例：教材、数学、九成新（用顿号分隔）"
-                className="rounded-card-sm border border-black/10 bg-panel px-3 py-2 text-sm outline-none focus:border-blush-deep"
-              />
-            </label>
+            <Input
+              label="标签"
+              badge={<FieldBadge state={badgeFor(aiFill, current, 'tags')} />}
+              value={tags.join('、')}
+              onChange={(e) => setTags(e.target.value.split(/[，,、]/).filter(Boolean))}
+              placeholder="例：教材、数学、九成新（用顿号分隔）"
+            />
 
             {mode === 'donate' ? (
               <p className="rounded-card-sm bg-blush/15 px-3 py-2 text-xs text-ink-soft">
@@ -506,20 +498,17 @@ export default function PublishForm() {
               </p>
             ) : (
               <div className="flex flex-col gap-1.5">
-                <label className="flex flex-col gap-1.5">
-                  <span className="text-sm text-ink-soft">转售价（元）</span>
-                  <input
-                    type="number"
-                    min="0"
-                    step="1"
-                    value={price}
-                    onChange={(e) => setPrice(e.target.value)}
-                    placeholder="转售才需要，捐赠免费"
-                    className="rounded-card-sm border border-black/10 bg-panel px-3 py-2 text-sm outline-none focus:border-blush-deep"
-                  />
-                </label>
+                <Input
+                  label="转售价（元）"
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={price}
+                  onChange={(e) => setPrice(e.target.value)}
+                  placeholder="转售才需要，捐赠免费"
+                />
                 {aiPrice && (
-                  <div className="rounded-card-lg border border-black/10 bg-panel px-3 py-2.5">
+                  <div className="rounded-card-lg border border-line-strong bg-panel px-3 py-2.5">
                     <div className="flex items-center justify-between text-xs text-ink-soft">
                       <span>
                         AI 参考价 ¥{aiPrice.low}–{aiPrice.high}
@@ -553,7 +542,7 @@ export default function PublishForm() {
                 type="button"
                 onClick={() => setMode('sale')}
                 className={`rounded-card-lg border-2 p-5 text-left transition ${
-                  mode === 'sale' ? 'border-sky bg-sky/15' : 'border-black/10 bg-panel hover:border-sky'
+                  mode === 'sale' ? 'border-sky bg-sky/15' : 'border-line-strong bg-panel hover:border-sky'
                 }`}
               >
                 <span className="text-base font-semibold">低价转售</span>
@@ -565,7 +554,7 @@ export default function PublishForm() {
                 className={`rounded-card-lg border-2 p-5 text-left transition ${
                   mode === 'donate'
                     ? 'border-blush bg-blush/15'
-                    : 'border-black/10 bg-panel hover:border-blush'
+                    : 'border-line-strong bg-panel hover:border-blush'
                 }`}
               >
                 <span className="text-base font-semibold">公益捐赠</span>
@@ -574,7 +563,7 @@ export default function PublishForm() {
             </div>
 
             {mode === 'donate' && (
-              <div className="flex flex-col gap-2 rounded-card-lg border border-black/10 bg-panel p-4">
+              <div className="flex flex-col gap-2 rounded-card-lg border border-line-strong bg-panel p-4">
                 <span className="flex items-center gap-1.5 text-sm text-ink-soft">
                   公益标签
                   <FieldBadge
@@ -584,22 +573,24 @@ export default function PublishForm() {
                   />
                 </span>
                 <div className="flex flex-wrap items-center gap-2">
-                  <input
-                    type="text"
+                  <Input
                     value={donateTag}
                     onChange={(e) => setDonateTag(e.target.value)}
                     maxLength={20}
+                    aria-label="公益标签"
                     placeholder="例：教材援助 · 让知识继续流转"
-                    className="min-w-0 flex-1 rounded-card-sm border border-black/10 bg-cream/40 px-3 py-2 text-sm outline-none focus:border-blush-deep"
+                    className="min-w-0 flex-1"
                   />
-                  <button
-                    type="button"
+                  <Button
+                    size="sm"
+                    variant="soft"
                     onClick={onAiDonateTag}
-                    disabled={aiLoading || !desc.trim()}
-                    className="rounded-card bg-lilac/40 px-3 py-2 text-xs font-medium text-ink transition hover:bg-lilac/60 disabled:opacity-50"
+                    loading={aiLoading}
+                    loadingText="AI 正在思考…"
+                    disabled={!desc.trim()}
                   >
-                    {aiLoading ? '生成中…' : 'AI 生成'}
-                  </button>
+                    AI 生成
+                  </Button>
                 </div>
                 <p className="text-xs text-ink-soft">
                   会展示在捐赠页。不出现价格，也不出现「贫困」「资助」这类标签化表述。
@@ -611,33 +602,26 @@ export default function PublishForm() {
 
         <div className="mt-2 flex items-center justify-between">
           {step > 1 ? (
-            <button
-              type="button"
-              onClick={() => setStep(step - 1)}
-              className="rounded-card bg-panel px-5 py-2.5 text-sm text-ink transition hover:bg-cream"
-            >
+            <Button variant="secondary" onClick={() => setStep(step - 1)}>
               上一步
-            </button>
+            </Button>
           ) : (
             <span />
           )}
           {step < 3 ? (
-            <button
-              type="button"
-              onClick={() => setStep(step + 1)}
-              disabled={!canNext}
-              className="rounded-card bg-blush px-5 py-2.5 text-sm font-medium text-ink transition hover:bg-blush-deep disabled:opacity-50"
-            >
+            <Button onClick={() => setStep(step + 1)} disabled={!canNext}>
               下一步
-            </button>
+            </Button>
           ) : (
-            <button
+            <Button
               type="submit"
-              disabled={!mode || submitting}
-              className="rounded-card bg-blush px-5 py-2.5 text-sm font-medium text-ink transition hover:bg-blush-deep disabled:opacity-50"
+              size="lg"
+              loading={submitting}
+              loadingText="发布中…"
+              disabled={!mode}
             >
-              {submitting ? '发布中…' : '发布'}
-            </button>
+              发布
+            </Button>
           )}
         </div>
       </form>

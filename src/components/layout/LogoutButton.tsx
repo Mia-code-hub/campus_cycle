@@ -1,21 +1,24 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
+import Button from '@/components/ui/Button';
+
 export default function LogoutButton() {
+  const router = useRouter();
+
   async function logout() {
     try {
       await fetch('/api/auth/logout', { method: 'POST' });
     } finally {
-      window.location.href = '/';
+      // replace 而非 push：退出后不该还能「后退」回到已登录的页面
+      router.replace('/');
+      router.refresh();
     }
   }
 
   return (
-    <button
-      onClick={logout}
-      aria-label="退出登录"
-      className="rounded-card-sm px-3 py-1.5 text-ink-soft transition hover:bg-cream hover:text-ink"
-    >
+    <Button variant="ghost" size="sm" onClick={logout} aria-label="退出登录">
       退出
-    </button>
+    </Button>
   );
 }

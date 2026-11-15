@@ -1,16 +1,53 @@
 @import "tailwindcss";
 
+/* ——— 设计令牌 ———
+   全站唯一允许出现颜色字面量的地方。组件里只写 bg-panel / text-ink-soft 这类令牌类名，
+   不写 #hex、rgba()，也不写 Tailwind 默认调色板（red-500 / emerald-100 …）。
+   理由很实际：配色要能一处改、处处变；换主题、做深色模式、给评委看「设计系统」时都有据可查。
+   tests/design-tokens.test.ts 会扫描 src 下的组件源码，违反约定直接测试失败。 */
 @theme {
+  /* 三层表面：页面底 → 卡片面 → 抬起面（弹窗、浮层、图片占位） */
   --color-cream: #fdf6f0;
   --color-panel: #fffdfa;
+  --color-raise: #fffefc;
+  /* 下沉面：输入框底、代码块、表格斑马纹 */
+  --color-sunken: #f8efe6;
+
+  /* 描边：默认分隔线 / 需要看清的边框（输入框、表格外框） */
+  --color-line: #ece1d7;
+  --color-line-strong: #ddcfc2;
+
+  /* 品牌粉彩 */
   --color-blush: #f7b2bd;
   --color-blush-deep: #ef8fa1;
   --color-sky: #a8d8ea;
   --color-sky-deep: #7cbcd4;
   --color-lilac: #c7ceea;
   --color-lilac-deep: #9aa6dd;
+
+  /* 文字：正文 / 次要 */
   --color-ink: #4a4a55;
   --color-ink-soft: #8b8b96;
+
+  /* 语义色：成功 / 警告 / 危险。浅色只做底，深色只做字，保证 4.5:1 以上对比 */
+  --color-ok: #37735a;
+  --color-ok-soft: #e7f2eb;
+  --color-ok-line: #c3ded0;
+  --color-warn: #7f5c11;
+  --color-warn-soft: #fdf2d9;
+  --color-warn-line: #edd6a3;
+  --color-danger: #a23f4c;
+  --color-danger-deep: #8a303d;
+  --color-danger-soft: #fbe8ea;
+  --color-danger-line: #efc3c9;
+
+  /* 遮罩与焦点环 */
+  --color-scrim: #38383f;
+  --color-focus: #9aa6dd;
+
+  /* 信纸：电子感谢信的纸色与纸纹线 */
+  --color-paper: #fffdf7;
+  --color-paper-line: #f0e8d8;
 
   --radius-card-sm: 12px;
   --radius-card: 16px;
@@ -22,6 +59,42 @@
   --font-sans:
     ui-sans-serif, system-ui, -apple-system, "Segoe UI", "PingFang SC",
     "Microsoft YaHei", sans-serif;
+
+  /* 骨架屏扫光与 AI 思考三点 */
+  --animate-shimmer: shimmer 1.5s ease-in-out infinite;
+  @keyframes shimmer {
+    from {
+      background-position: 180% 0;
+    }
+    to {
+      background-position: -80% 0;
+    }
+  }
+
+  --animate-dot: dot-bounce 1.05s ease-in-out infinite;
+  @keyframes dot-bounce {
+    0%,
+    60%,
+    100% {
+      transform: translateY(0);
+      opacity: 0.45;
+    }
+    30% {
+      transform: translateY(-3px);
+      opacity: 1;
+    }
+  }
+
+  /* 路由切换顶部进度条：不确定进度，来回走 */
+  --animate-nav-progress: nav-progress 1.2s ease-in-out infinite;
+  @keyframes nav-progress {
+    0% {
+      transform: translateX(-100%);
+    }
+    100% {
+      transform: translateX(340%);
+    }
+  }
 }
 
 html,
@@ -33,6 +106,54 @@ body {
   background: var(--color-cream);
   color: var(--color-ink);
   font-family: var(--font-sans);
+}
+
+/* 键盘用户：所有可聚焦元素都有统一的可见焦点环，且不会被 overflow 裁掉 */
+:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+/* 鼠标点击不显示焦点环，键盘导航才显示——两者都保留，别一刀切 outline:none */
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+::selection {
+  background: var(--color-lilac);
+  color: var(--color-ink);
+}
+
+/* 骨架屏：一块会扫光的浅色面。组件只管尺寸，颜色与动画都来自令牌 */
+.skeleton {
+  background-color: var(--color-sunken);
+  background-image: linear-gradient(
+    90deg,
+    var(--color-sunken) 20%,
+    var(--color-line) 40%,
+    var(--color-sunken) 60%
+  );
+  background-size: 220% 100%;
+  animation: var(--animate-shimmer);
+  border-radius: var(--radius-card-sm);
+}
+
+/* 弹窗与抽屉的原生 <dialog>：去掉浏览器默认边框/内边距，遮罩色走令牌 */
+dialog::backdrop {
+  background: color-mix(in srgb, var(--color-scrim) 55%, transparent);
+  backdrop-filter: blur(2px);
+}
+
+/* 全站尊重系统的「减少动态效果」。打字机与少数关键动画单独写了兜底，这里兜住其余全部 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* AI 导购语打字机：逐字给出延迟，纯 CSS 播放，无需 JS，SSR 内容完整 */
@@ -59,14 +180,17 @@ body {
 
 /* 感谢信信纸：米白纸底 + 极淡纸纹 + 轻微内阴影，截图与打印都不刺眼 */
 .letter-paper {
-  background-color: #fffdf7;
-  background-image: radial-gradient(rgba(74, 74, 85, 0.035) 1px, transparent 1px);
+  background-color: var(--color-paper);
+  background-image: radial-gradient(
+    color-mix(in srgb, var(--color-ink) 4%, transparent) 1px,
+    transparent 1px
+  );
   background-size: 20px 20px;
-  border: 1px solid rgba(74, 74, 85, 0.08);
+  border: 1px solid var(--color-line);
   border-radius: 4px;
   box-shadow:
-    0 10px 28px rgba(74, 74, 85, 0.1),
-    inset 0 0 60px rgba(247, 178, 189, 0.06);
+    0 10px 28px color-mix(in srgb, var(--color-ink) 10%, transparent),
+    inset 0 0 60px color-mix(in srgb, var(--color-blush) 8%, transparent);
 }
 
 /* ——— 打印 / 导出 PDF ———

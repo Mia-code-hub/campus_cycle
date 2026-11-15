@@ -1,6 +1,11 @@
 'use client';
 
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { useRouter } from 'next/navigation';
+import Button from '@/components/ui/Button';
+import Modal from '@/components/ui/Modal';
+import EmptyState from '@/components/ui/EmptyState';
+import { Input } from '@/components/ui/Input';
 
 interface Message {
   id: number;
@@ -11,6 +16,7 @@ interface Message {
 }
 
 export default function MessageDrawer({ itemId }: { itemId: number }) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -25,7 +31,7 @@ export default function MessageDrawer({ itemId }: { itemId: number }) {
       try {
         const res = await fetch(`/api/items/${itemId}/messages`);
         if (res.status === 401) {
-          window.location.href = `/login?next=/items/${itemId}`;
+          router.push(`/login?next=/items/${itemId}`);
           return;
         }
         const data = await res.json().catch(() => null);
@@ -40,7 +46,7 @@ export default function MessageDrawer({ itemId }: { itemId: number }) {
       cancelled = true;
       clearInterval(timer);
     };
-  }, [open, itemId]);
+  }, [open, itemId, router]);
 
   useEffect(() => {
     bodyRef.current?.scrollTo(0, bodyRef.current.scrollHeight);
@@ -80,77 +86,80 @@ export default function MessageDrawer({ itemId }: { itemId: number }) {
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="w-full rounded-card bg-panel py-3 text-sm font-medium text-ink transition hover:bg-cream"
-      >
+      <Button variant="secondary" block onClick={() => setOpen(true)}>
         联系 TA
-      </button>
+      </Button>
 
-      {open && (
-        <div
-          className="fixed inset-0 z-30 flex justify-end bg-black/20"
-          onClick={() => setOpen(false)}
-        >
-          <div
-            className="flex h-full w-full max-w-sm flex-col bg-panel shadow-lift"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between border-b border-black/5 px-4 py-3">
-              <span className="font-medium text-ink">联系 TA</span>
-              <button
-                type="button"
-                onClick={() => setOpen(false)}
-                aria-label="关闭"
-                className="text-ink-soft transition hover:text-ink"
-              >
-                ×
-              </button>
-            </div>
-
-            <div ref={bodyRef} className="flex-1 overflow-y-auto px-4 py-3">
-              {messages.length === 0 && (
-                <p className="py-10 text-center text-xs text-ink-soft">还没有消息，打个招呼吧</p>
-              )}
-              {messages.map((m) => (
-                <div key={m.id} className={`mb-3 flex ${m.mine ? 'justify-end' : 'justify-start'}`}>
-                  <div
-                    className={`max-w-[80%] rounded-card-sm px-3 py-2 text-sm ${
-                      m.mine ? 'bg-blush text-ink' : 'border border-black/10 bg-cream text-ink'
-                    }`}
-                  >
-                    <p className="break-words">{m.content}</p>
-                    <p className="mt-1 text-center text-[10px] text-ink-soft">
-                      {m.created_at.slice(11, 16)}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="flex gap-2 border-t border-black/5 p-3">
-              <input
+      {/* 移动端整屏、桌面端右侧抽屉；Esc 关闭与焦点还原由原生 dialog 负责 */}
+      <Modal
+        open={open}
+        onClose={() => setOpen(false)}
+        title="联系 TA"
+        description="只在平台内沟通，别在私信里转账或留联系方式"
+        size="drawer"
+        footer={
+          <div className="flex w-full flex-col gap-2">
+            {error && (
+              <p role="alert" className="text-xs text-danger">
+                {error}
+              </p>
+            )}
+            <div className="flex w-full items-center gap-2">
+              <Input
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={onKeyDown}
+                aria-label="输入消息内容"
                 placeholder="输入消息…"
                 maxLength={500}
-                className="flex-1 rounded-card-sm border border-black/10 bg-cream/50 px-3 py-2 text-sm outline-none focus:border-blush-deep"
+                className="flex-1"
               />
-              <button
-                type="button"
+              <Button
+                size="sm"
                 onClick={send}
-                disabled={sending || !input.trim()}
-                className="rounded-card-sm bg-blush px-4 py-2 text-sm font-medium text-ink transition hover:bg-blush-deep disabled:opacity-50"
+                loading={sending}
+                loadingText="发送中…"
+                disabled={!input.trim()}
               >
-                {sending ? '发送中…' : '发送'}
-              </button>
+                发送
+              </Button>
             </div>
-            {error && <p className="px-4 pb-2 text-xs text-red-600">{error}</p>}
           </div>
+        }
+      >
+        <div
+          ref={bodyRef}
+          role="log"
+          aria-label="对话消息"
+          aria-live="polite"
+          className="flex min-h-full flex-col"
+        >
+          {messages.length === 0 && (
+            <EmptyState
+              compact
+              art={null}
+              title="还没有消息，打个招呼吧"
+              description="问清楚成色、配件和自提地点，能省掉来回好几轮。"
+            />
+          )}
+          {messages.map((m) => (
+            <div key={m.id} className={`mb-3 flex ${m.mine ? 'justify-end' : 'justify-start'}`}>
+              <div
+                className={`max-w-[80%] rounded-card-sm px-3 py-2 text-sm ${
+                  m.mine ? 'bg-blush/60 text-ink' : 'bg-sunken text-ink ring-1 ring-line'
+                }`}
+              >
+                <p className="break-words">{m.content}</p>
+                <p className="mt-1 text-center text-[10px] text-ink-soft">
+                  <span className="sr-only">{m.mine ? '我' : '对方'}在 </span>
+                  {m.created_at.slice(11, 16)}
+                  <span className="sr-only"> 发送</span>
+                </p>
+              </div>
+            </div>
+          ))}
         </div>
-      )}
+      </Modal>
     </>
   );
 }

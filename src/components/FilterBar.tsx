@@ -3,6 +3,10 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { CATEGORIES, CONDITIONS } from '@/lib/constants';
+import Button from '@/components/ui/Button';
+import Card from '@/components/ui/Card';
+import { Input, Select } from '@/components/ui/Input';
+import { cn } from '@/lib/ui/cn';
 
 interface Props {
   category: string;
@@ -12,10 +16,12 @@ interface Props {
   maxPrice: string;
 }
 
+/* 筛选芯片：选中态用品牌粉，未选中给浅底。aria-pressed 让读屏也知道「选没选」 */
 function chipClass(active: boolean): string {
-  return `rounded-full px-4 py-1.5 text-sm transition ${
-    active ? 'bg-blush text-ink' : 'bg-panel text-ink-soft hover:bg-cream'
-  }`;
+  return cn(
+    'rounded-full px-4 py-1.5 text-sm transition',
+    active ? 'bg-blush font-medium text-ink' : 'bg-sunken text-ink-soft hover:bg-line hover:text-ink',
+  );
 }
 
 export default function FilterBar({ category, mode, condition, minPrice, maxPrice }: Props) {
@@ -45,10 +51,15 @@ export default function FilterBar({ category, mode, condition, minPrice, maxPric
   }
 
   return (
-    <div className="flex flex-col gap-3 rounded-card-lg bg-panel p-4 shadow-soft">
-      <div className="flex flex-wrap items-center gap-2">
+    <Card padding="md" className="flex flex-col gap-3" aria-label="筛选条件">
+      <div role="group" aria-label="按类别筛选" className="flex flex-wrap items-center gap-2">
         <span className="mr-1 w-8 text-xs text-ink-soft">类别</span>
-        <button type="button" onClick={() => apply({ category: undefined })} className={chipClass(!category)}>
+        <button
+          type="button"
+          onClick={() => apply({ category: undefined })}
+          aria-pressed={!category}
+          className={chipClass(!category)}
+        >
           全部
         </button>
         {CATEGORIES.map((c) => (
@@ -56,6 +67,7 @@ export default function FilterBar({ category, mode, condition, minPrice, maxPric
             key={c.value}
             type="button"
             onClick={() => toggle('category', c.value, category)}
+            aria-pressed={category === c.value}
             className={chipClass(category === c.value)}
           >
             {c.label}
@@ -63,66 +75,82 @@ export default function FilterBar({ category, mode, condition, minPrice, maxPric
         ))}
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
+      <div role="group" aria-label="按流转方式筛选" className="flex flex-wrap items-center gap-2">
         <span className="mr-1 w-8 text-xs text-ink-soft">方式</span>
-        <button type="button" onClick={() => apply({ mode: undefined })} className={chipClass(!mode)}>
+        <button
+          type="button"
+          onClick={() => apply({ mode: undefined })}
+          aria-pressed={!mode}
+          className={chipClass(!mode)}
+        >
           全部
         </button>
-        <button type="button" onClick={() => toggle('mode', 'sale', mode)} className={chipClass(mode === 'sale')}>
+        <button
+          type="button"
+          onClick={() => toggle('mode', 'sale', mode)}
+          aria-pressed={mode === 'sale'}
+          className={chipClass(mode === 'sale')}
+        >
           低价转售
         </button>
-        <button type="button" onClick={() => toggle('mode', 'donate', mode)} className={chipClass(mode === 'donate')}>
+        <button
+          type="button"
+          onClick={() => toggle('mode', 'donate', mode)}
+          aria-pressed={mode === 'donate'}
+          className={chipClass(mode === 'donate')}
+        >
           公益捐赠
         </button>
       </div>
 
-      <div className="flex flex-wrap items-center gap-3">
-        <label className="flex items-center gap-2">
-          <span className="text-xs text-ink-soft">成色</span>
-          <select
-            value={condition}
-            onChange={(e) => apply({ condition: e.target.value || undefined })}
-            className="rounded-card-sm border border-black/10 bg-cream/50 px-2 py-1.5 text-sm outline-none focus:border-blush-deep"
-          >
-            <option value="">全部</option>
-            {CONDITIONS.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
-        </label>
+      <div className="flex flex-wrap items-end gap-3">
+        <Select
+          label="成色"
+          value={condition}
+          onChange={(e) => apply({ condition: e.target.value || undefined })}
+          wrapperClassName="w-28"
+        >
+          <option value="">全部</option>
+          {CONDITIONS.map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
+        </Select>
 
-        <label className="flex items-center gap-2">
-          <span className="text-xs text-ink-soft">价格</span>
-          <input
+        <div className="flex items-end gap-2">
+          <Input
             type="number"
             min="0"
             step="0.01"
             value={min}
             onChange={(e) => setMin(e.target.value)}
+            aria-label="最低价格"
             placeholder="最低"
-            className="w-20 rounded-card-sm border border-black/10 bg-cream/50 px-2 py-1.5 text-sm outline-none focus:border-blush-deep"
+            className="w-20 px-2 py-1.5"
           />
-          <span className="text-xs text-ink-soft">-</span>
-          <input
+          <span className="pb-2 text-xs text-ink-soft" aria-hidden="true">
+            –
+          </span>
+          <Input
             type="number"
             min="0"
             step="0.01"
             value={max}
             onChange={(e) => setMax(e.target.value)}
+            aria-label="最高价格"
             placeholder="最高"
-            className="w-20 rounded-card-sm border border-black/10 bg-cream/50 px-2 py-1.5 text-sm outline-none focus:border-blush-deep"
+            className="w-20 px-2 py-1.5"
           />
-          <button
-            type="button"
+          <Button
+            size="sm"
+            variant="secondary"
             onClick={() => apply({ minPrice: min || undefined, maxPrice: max || undefined })}
-            className="rounded-card-sm bg-sky px-3 py-1.5 text-sm text-ink transition hover:bg-sky-deep"
           >
             确定
-          </button>
-        </label>
+          </Button>
+        </div>
       </div>
-    </div>
+    </Card>
   );
 }

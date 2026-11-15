@@ -115,6 +115,62 @@ npm run export:prompts -- --feature letter   # 只导一个功能
 - **防公式注入**：`= + - @` 开头的单元格前缀单引号，昵称里带 `=HYPERLINK(...)` 也不会在 Excel 里被当成公式。
 - 文件名必须是纯 ASCII（`donation-ledger-all-20261115-1545.csv`）：HTTP 头按 ByteString 处理，塞中文会让响应直接 500，这是实测踩到的。
 
+## 统一 UI 组件与打磨（R19）
+
+一轮把「颜色散落、按钮各写各的、加载时白屏」这三件事一次性收掉。
+
+### 颜色只有一处定义
+
+`src/app/globals.css` 的 `@theme` 是**全站唯一允许出现颜色字面量**的地方，其余代码只准引用令牌：
+
+| 组 | 令牌 | 用途 |
+|---|---|---|
+| 表面 | `cream` / `panel` / `raise` / `sunken` | 页面底、卡片、浮起层、凹陷区（输入框、骨架） |
+| 描边 | `line` / `line-strong` | 分隔线、控件边框 |
+| 品牌 | `blush` / `sky` / `lilac` + 各自 `-deep` | 主色（粉）、次色（蓝）、进度与图表（紫） |
+| 文字 | `ink` / `ink-soft` | 正文、说明 |
+| 语义 | `ok` / `warn` / `danger`，各带 `-soft` / `-line` / `-deep` | 成功、提示、危险；底色与描边成套，避免临时配 |
+| 其他 | `scrim` / `focus` / `paper` / `paper-line` | 弹窗遮罩、焦点环、信纸 |
+
+半透明一律用 `color-mix(in srgb, var(--color-x) 40%, transparent)`，不写 `rgba()`——换主题时一处改完。
+
+守门的是 `tests/design-tokens.test.ts`：① 28 个语义令牌必须都在 `@theme` 里定义；② 扫描 `src/app`、`src/components` 下所有 ts/tsx，出现 `#hex`、`rgb()/hsl()`、Tailwind 默认调色板类名（`text-red-500`、`bg-emerald-100`…）即失败；③ canvas 取色必须走 `readPaintTokens()`。写死一个色值，`npm test` 当场红。
+
+### 九个基础件
+
+`src/components/ui/`：`Button`（primary / secondary / ghost / soft / danger，主按钮 hover 上浮）、`Card`（三层圆角 × 四种底色 × 内边距）、`Badge`（8 种语义色）、`Alert`、`Input` / `Textarea` / `Select`、`Modal`、`Toast`、`Skeleton`、`EmptyState`，外加 `icons.tsx`（内联 SVG，`aria-hidden`）。
+
+- **弹窗不手写焦点陷阱**：用原生 `<dialog>` + `showModal()`，Esc 关闭、关闭后焦点还原、Tab 循环都由浏览器负责，自己只补 body 滚动锁和 `::backdrop`。
+- **表单控件自带无障碍**：`useId()` 生成 id，`<label htmlFor>` 关联，hint 与 error 各带 id 并由 `aria-describedby` 串起来，出错时补 `aria-invalid`（样式用 `aria-[invalid=true]:` 变体，不靠 JS 加类）。
+- **按钮加载态统一**：`loading` 时禁用 + `aria-busy`，文案换成「AI 正在思考…」并带三点跳动；`prefers-reduced-motion` 下动画停掉。
+- **Toast 逻辑抽成纯函数**（`src/lib/ui/toast.ts`）：新的排最前、上限 3 条、同 key 去重——连点两次收藏不会刷出两条相反的提示。
+
+### 加载、错误、404
+
+- 每个路由配 `loading.tsx`（首页、搜索、详情、个人中心、管理端），骨架和真实卡片同高，切过去不跳。骨架对读屏隐藏，由外层 `role="status" aria-live="polite"` 播报「正在加载搜索页…」。
+
+![搜索页加载骨架](docs/screenshots/ui-loading-search.png)
+
+- 路由切换顶部 2px 进度条：App Router 没有 router event，改用捕获阶段监听站内 `<a>` 点击起条、路径（含查询串）变化收条，12 秒兜底。条子本身 `aria-hidden`，另有一句 sr-only「正在加载页面」。
+- `error.tsx` / `admin/error.tsx` / `global-error.tsx`（后者不依赖布局与 CSS 变量，颜色取 `CRITICAL_PAINT` 镜像值）+ `not-found.tsx`，共用一套「粉彩插画 + 标题 + 说明 + 重试」版式，错误页额外显示 `digest` 方便对日志。
+
+![404](docs/screenshots/ui-404.png)
+
+### 移动端
+
+桌面导航在 `md` 以下只留品牌与昵称/登录，功能入口交给底部标签栏（首页 / 找物 / 发布 / 公益 / 我的），中间「发布」是凸起主按钮。`min-h-14` 保证触控区、`pb-[env(safe-area-inset-bottom)]` 适配刘海屏、body 底部预留同样高度，内容不会被标签栏压住。
+
+![移动端首页与底部标签栏](docs/screenshots/ui-mobile-home.png)
+
+### 无障碍清单
+
+1. 首屏第一个可聚焦元素是「跳到主要内容」，`#main` 带 `tabIndex={-1}` 接住焦点。
+2. 所有图标按钮有 `aria-label`，装饰性 SVG 一律 `aria-hidden` + `focusable="false"`。
+3. 当前页用 `aria-current="page"`，高亮和 `aria-current` 走同一个 `activeNavHref()`，不会出现「看着高亮、读屏说不是」。
+4. 表单 label 关联、错误 `role="alert"`、提示 `aria-describedby`。
+5. 全局 `:focus-visible` 2px 焦点环（`--color-focus`），鼠标点击不显示。
+6. 动态内容（Toast、私信列表、骨架）有 `aria-live`；全站 `prefers-reduced-motion` 兜底。
+
 ## 模型选择与降级（重要）
 
 模型名全部走 `.env.local`，换模型不用改代码。当前实测可用的一套（2026-11-15）：
@@ -148,7 +204,7 @@ npm run export:prompts -- --feature letter   # 只导一个功能
 - [x] 阶段 1：需求文档包、数据库设计、AI 接口契约、分轮提示词脚本
 - [x] 阶段 2：基础业务（R1–R8）
 - [x] 阶段 3：AI 能力（R9–R15）—— 调用底座、识图文案、估价、向量检索、违规审核、感谢信、留痕导出
-- [ ] 阶段 4：数据看板（R16–R18）—— R16 统计接口、R17 管理端看板、R18 AI 环保报告与台账导出已完成
-- [ ] 阶段 5：联调与打磨（R19–R22）
+- [x] 阶段 4：数据看板（R16–R18）—— R16 统计接口、R17 管理端看板、R18 AI 环保报告与台账导出
+- [ ] 阶段 5：联调与打磨（R19–R22）—— R19 统一 UI 组件、令牌化配色、加载/错误/404/移动端导航已完成
 
 报名与省赛作品提交截止：**2026-11-18**。

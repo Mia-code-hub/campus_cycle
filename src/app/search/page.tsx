@@ -3,7 +3,7 @@ import { Suspense } from 'react';
 import { getCurrentUser } from '@/server/auth';
 import { runSemanticSearch } from '@/server/search';
 import ItemCard from '@/components/ItemCard';
-import EmptyState from '@/components/EmptyState';
+import EmptyState from '@/components/ui/EmptyState';
 import SearchGuide from '@/components/search/SearchGuide';
 
 // 搜索结果依赖 searchParams，页面按请求渲染；首页也是同样的配置
@@ -32,7 +32,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Searc
             type="search"
             defaultValue={q}
             placeholder="有没有便宜点的高数课本"
-            className="flex-1 rounded-card-sm border border-black/10 bg-panel px-4 py-2.5 text-sm outline-none focus:border-blush-deep"
+            className="flex-1 rounded-card-sm border border-line-strong bg-panel px-4 py-2.5 text-sm outline-none focus:border-blush-deep"
           />
           <button
             type="submit"
@@ -50,8 +50,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Searc
       ) : (
         <EmptyState
           title="输入一句话开始找，比如「有没有便宜点的高数课本」"
-          actionHref="/"
-          actionLabel="先逛逛全部在架"
+          action={{ href: '/', label: '先逛逛全部在架' }}
         />
       )}
     </main>

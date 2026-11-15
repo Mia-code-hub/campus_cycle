@@ -2,6 +2,10 @@
 
 import { useState, type FormEvent } from 'react';
 import Link from 'next/link';
+import Button from '@/components/ui/Button';
+import Card from '@/components/ui/Card';
+import Alert from '@/components/ui/Alert';
+import { Input } from '@/components/ui/Input';
 
 function resolveNext(): string {
   if (typeof window === 'undefined') return '/';
@@ -41,47 +45,40 @@ export default function LoginPage() {
 
   return (
     <main className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center px-6 py-16">
-      <div className="rounded-card-lg bg-panel p-8 shadow-soft">
+      <Card radius="lg" padding="xl" tone="raise">
         <h1 className="text-2xl font-semibold tracking-tight">登录</h1>
         <p className="mt-2 text-sm text-ink-soft">登录后可发布闲置、申领与公益捐赠</p>
 
-        <form onSubmit={onSubmit} className="mt-6 flex flex-col gap-4">
-          <label className="flex flex-col gap-1.5">
-            <span className="text-sm text-ink-soft">用户名</span>
-            <input
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              required
-              autoComplete="username"
-              className="rounded-card-sm border border-black/10 bg-cream/50 px-3 py-2 text-sm outline-none focus:border-blush-deep"
-            />
-          </label>
-          <label className="flex flex-col gap-1.5">
-            <span className="text-sm text-ink-soft">密码</span>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              autoComplete="current-password"
-              className="rounded-card-sm border border-black/10 bg-cream/50 px-3 py-2 text-sm outline-none focus:border-blush-deep"
-            />
-          </label>
+        <form onSubmit={onSubmit} aria-label="登录表单" className="mt-6 flex flex-col gap-4">
+          <Input
+            label="用户名"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            required
+            autoComplete="username"
+            placeholder="学号或自定义用户名"
+          />
+          <Input
+            label="密码"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            autoComplete="current-password"
+          />
 
-          {error && (
-            <p className="text-sm text-red-600" role="alert">
-              {error}
-            </p>
-          )}
+          {error && <Alert tone="danger" title="登录失败">{error}</Alert>}
 
-          <button
+          <Button
             type="submit"
-            disabled={loading}
-            className="mt-1 rounded-card bg-blush py-2.5 text-sm font-medium text-ink transition hover:bg-blush-deep disabled:opacity-60"
+            size="lg"
+            block
+            loading={loading}
+            loadingText="登录中…"
+            className="mt-1"
           >
-            {loading ? '登录中…' : '登录'}
-          </button>
+            登录
+          </Button>
         </form>
 
         <p className="mt-5 text-center text-sm text-ink-soft">
@@ -90,7 +87,7 @@ export default function LoginPage() {
             去注册
           </Link>
         </p>
-      </div>
+      </Card>
     </main>
   );
 }
