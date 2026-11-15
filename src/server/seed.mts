@@ -45,6 +45,37 @@ for (const c of SVG_CONFIGS) {
   writeFileSync(join(uploadsDir, `${c.name}.svg`), svg);
 }
 
+// ---- 2b. 生成演示收款码（伪二维码 SVG：随机点阵 + 三个定位角）----
+// 真收款码属于个人财产，演示库不放假冒真实付款的图，只做「长得像收款码」的占位
+function fakeQrSvg(color: string, label: string): string {
+  const N = 25;
+  const cell = 12;
+  let rects = '';
+  const finder = (x: number, y: number) => {
+    rects += `<rect x="${x * cell}" y="${y * cell}" width="${7 * cell}" height="${7 * cell}" fill="${color}"/><rect x="${(x + 1) * cell}" y="${(y + 1) * cell}" width="${5 * cell}" height="${5 * cell}" fill="#ffffff"/><rect x="${(x + 2) * cell}" y="${(y + 2) * cell}" width="${3 * cell}" height="${3 * cell}" fill="${color}"/>`;
+  };
+  const inFinder = (x: number, y: number) =>
+    (x < 8 && y < 8) || (x > N - 9 && y < 8) || (x < 8 && y > N - 9);
+  let seed = 20261115;
+  const rand = () => {
+    seed = (seed * 1103515245 + 12345) % 2147483648;
+    return seed / 2147483648;
+  };
+  for (let y = 0; y < N; y += 1) {
+    for (let x = 0; x < N; x += 1) {
+      if (inFinder(x, y) || rand() > 0.5) continue;
+      rects += `<rect x="${x * cell}" y="${y * cell}" width="${cell}" height="${cell}" fill="${color}"/>`;
+    }
+  }
+  finder(0, 0);
+  finder(N - 7, 0);
+  finder(0, N - 7);
+  const size = N * cell;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"><rect width="${size}" height="${size}" fill="#ffffff"/>${rects}<text x="${size / 2}" y="${size - 8}" font-family="sans-serif" font-size="18" fill="${color}" text-anchor="middle">演示${label}收款码</text></svg>`;
+}
+writeFileSync(join(uploadsDir, 'seed-qr-wechat.svg'), fakeQrSvg('#07c160', '微信'));
+writeFileSync(join(uploadsDir, 'seed-qr-alipay.svg'), fakeQrSvg('#1677ff', '支付宝'));
+
 // ---- 3. 插入用户 ----
 const USERS = [
   { username: 'admin', nickname: '管理员', college: '校务处', grade: null, role: 'admin', is_aid: 0 },
@@ -58,10 +89,12 @@ const USERS = [
 const userId: Record<string, number> = {};
 {
   const insertUser = db.prepare(
-    'INSERT INTO users (username, password_hash, salt, nickname, college, grade, role, is_aid_approved) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    'INSERT INTO users (username, password_hash, salt, nickname, college, grade, role, is_aid_approved, wechat_qr, alipay_qr) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
   );
   for (const u of USERS) {
     const stored = hashPassword(PASSWORD);
+    // 毕业班三个卖家都配演示收款码；管理员与新生不需要
+    const isSeller = u.role === 'user' && u.grade === '毕业班';
     const info = insertUser.run(
       u.username,
       stored,
@@ -71,6 +104,8 @@ const userId: Record<string, number> = {};
       u.grade,
       u.role,
       u.is_aid,
+      isSeller ? '/uploads/seed-qr-wechat.svg' : null,
+      isSeller ? '/uploads/seed-qr-alipay.svg' : null,
     );
     userId[u.username] = Number(info.lastInsertRowid);
   }

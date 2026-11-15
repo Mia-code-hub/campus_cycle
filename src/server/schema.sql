@@ -13,6 +13,9 @@ CREATE TABLE IF NOT EXISTS users (
   is_aid_approved INTEGER NOT NULL DEFAULT 0 CHECK (is_aid_approved IN (0,1,2,3)),
   -- 感谢信署名偏好：默认匿名，只有本人主动开启才会在信中署昵称
   letter_anonymous INTEGER NOT NULL DEFAULT 1 CHECK (letter_anonymous IN (0,1)),
+  -- 收款码：平台只做撮合不碰钱，买家扫物主本人的码直接转账
+  wechat_qr TEXT,
+  alipay_qr TEXT,
   created_at      TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
 );
 
@@ -174,3 +177,18 @@ CREATE TABLE IF NOT EXISTS ai_call_logs (
   created_at    TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
 );
 CREATE INDEX IF NOT EXISTS idx_ai_logs_feature ON ai_call_logs(feature, created_at);
+
+-- 支付通道（收款码模式）：一笔出售申领最多一条支付记录。
+-- 钱在买家与物主之间直接流转，这张表只做信用台账——谁选了什么方式、
+-- 买家何时声明已转账、物主何时确认收款，全部有据可查。
+CREATE TABLE IF NOT EXISTS payments (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  application_id  INTEGER NOT NULL UNIQUE REFERENCES applications(id) ON DELETE CASCADE,
+  method          TEXT    NOT NULL CHECK (method IN ('wechat','alipay')),
+  amount          REAL    NOT NULL CHECK (amount > 0),
+  status          TEXT    NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','paid','confirmed')),
+  created_at      TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
+  paid_at         TEXT,
+  confirmed_at    TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_payments_status ON payments(status, created_at);

@@ -43,9 +43,12 @@ const CONFIRM_DESC: Record<string, string> = {
 export default function ApplicationActions({
   applicationId,
   actions,
+  labels,
 }: {
   applicationId: number;
   actions: string[];
+  /** 覆盖默认文案：同一个 complete 动作在不同语境下含义不同（如「确认收款并交割」） */
+  labels?: Record<string, string>;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -103,7 +106,7 @@ export default function ApplicationActions({
           loadingText="处理中…"
           disabled={!!loading && loading !== a}
         >
-          {ACTION_LABEL[a] ?? a}
+          {labels?.[a] ?? ACTION_LABEL[a] ?? a}
         </Button>
       ))}
 

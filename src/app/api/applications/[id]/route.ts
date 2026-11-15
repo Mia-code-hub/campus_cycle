@@ -3,6 +3,7 @@ import { getDb } from '@/server/db';
 import { requireUser } from '@/server/auth';
 import { greenWeightKg } from '@/lib/green-factors';
 import { ensureLetterQuietly } from '@/server/letters';
+import { settleOnComplete } from '@/server/payments';
 import {
   transition,
   type ApplicationAction,
@@ -107,24 +108,47 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   }
 
   const created = { donationId: 0 };
-  db.transaction(() => {
-    db.prepare("UPDATE applications SET status = ?, updated_at = datetime('now','localtime') WHERE id = ?").run(
-      next.applicationStatus,
-      app.id,
-    );
-    if (next.itemStatus !== item.status) {
-      db.prepare('UPDATE items SET status = ? WHERE id = ?').run(next.itemStatus, item.id);
+  let paymentBlocked = false;
+  try {
+    db.transaction(() => {
+      db.prepare("UPDATE applications SET status = ?, updated_at = datetime('now','localtime') WHERE id = ?").run(
+        next.applicationStatus,
+        app.id,
+      );
+      if (next.itemStatus !== item.status) {
+        db.prepare('UPDATE items SET status = ? WHERE id = ?').run(next.itemStatus, item.id);
+      }
+      // 捐赠物品完成交割 → 写捐赠台账，重量按类别系数折算
+      if (action === 'complete' && item.mode === 'donate') {
+        const info = db
+          .prepare(
+            'INSERT INTO donations (application_id, item_id, donor_id, receiver_id, green_weight_kg) VALUES (?, ?, ?, ?, ?)',
+          )
+          .run(app.id, item.id, item.owner_id, app.applicant_id, greenWeightKg(item.category));
+        created.donationId = Number(info.lastInsertRowid);
+      }
+      // 出售物品完成交割 = 确认收款：买家还没声明转账的，交割不允许越过这一步
+      if (action === 'complete' && item.mode === 'sale') {
+        const settle = settleOnComplete(app.id);
+        if (settle.blocked) {
+          paymentBlocked = true;
+          throw new Error('PAYMENT_PENDING');
+        }
+      }
+    })();
+  } catch (e) {
+    if (paymentBlocked) {
+      return NextResponse.json(
+        {
+          ok: false,
+          code: 'PAYMENT_PENDING',
+          message: '买家还没有确认转账，等对方完成支付后再交割',
+        },
+        { status: 400 },
+      );
     }
-    // 捐赠物品完成交割 → 写捐赠台账，重量按类别系数折算
-    if (action === 'complete' && item.mode === 'donate') {
-      const info = db
-        .prepare(
-          'INSERT INTO donations (application_id, item_id, donor_id, receiver_id, green_weight_kg) VALUES (?, ?, ?, ?, ?)',
-        )
-        .run(app.id, item.id, item.owner_id, app.applicant_id, greenWeightKg(item.category));
-      created.donationId = Number(info.lastInsertRowid);
-    }
-  })();
+    throw e;
+  }
 
   // 交割完成后在响应结束时生成感谢信（幂等）：写信失败绝不影响交割结果，
   // 台账页再点一次「生成感谢信」会重试。

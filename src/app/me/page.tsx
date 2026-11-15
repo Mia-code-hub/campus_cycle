@@ -7,6 +7,7 @@ import {
   getMyStats,
   getMyItems,
   getMyFavorites,
+  getMyPayout,
   getReceivedApplications,
   getMyApplications,
   getLetterAnonymous,
@@ -23,6 +24,9 @@ import { ButtonLink } from '@/components/ui/Button';
 import ApplicationActions from '@/components/ApplicationActions';
 import ItemWithdrawButton from '@/components/ItemWithdrawButton';
 import LetterAnonymityToggle from '@/components/letters/LetterAnonymityToggle';
+import PayoutSettings from '@/components/PayoutSettings';
+import PaymentPanel from '@/components/PaymentPanel';
+import type { ReceivedApplicationRow } from '@/server/me';
 
 const TABS = [
   { key: 'posted', label: '我的发布' },
@@ -48,10 +52,28 @@ function appBadge(status: string): string {
   if (status === 'approved') return 'bg-sky text-ink';
   return 'bg-panel text-ink-soft';
 }
-function receivedActions(status: string): string[] {
-  if (status === 'pending') return ['approve', 'reject'];
-  if (status === 'approved') return ['complete', 'cancel'];
-  return [];
+/**
+ * 物主能做的动作。出售物品的交割动作要跟支付进度联动：
+ * 买家还没声明转账 → 不给交割按钮，只留等待提示；
+ * 买家已声明转账 → 交割按钮换成「确认收款并交割」。
+ */
+function receivedActions(
+  a: ReceivedApplicationRow,
+): { actions: string[]; labels?: Record<string, string>; note?: string } {
+  if (a.status === 'pending') return { actions: ['approve', 'reject'] };
+  if (a.status === 'approved') {
+    if (a.item_mode === 'sale' && a.payment_status === 'pending') {
+      return {
+        actions: ['cancel'],
+        note: '买家选好了支付方式但还没转账，交割要等对方完成支付',
+      };
+    }
+    if (a.item_mode === 'sale' && a.payment_status === 'paid') {
+      return { actions: ['complete', 'cancel'], labels: { complete: '确认收款并交割' } };
+    }
+    return { actions: ['complete', 'cancel'] };
+  }
+  return { actions: [] };
 }
 function appliedActions(status: string): string[] {
   return status === 'pending' || status === 'approved' ? ['cancel'] : [];
@@ -87,6 +109,7 @@ async function MeContent({
   const tab = TABS.some((t) => t.key === rawTab) ? (rawTab as string) : 'posted';
 
   const stats = getMyStats(user.id);
+  const payout = getMyPayout(user.id);
 
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-6 px-6 py-8">
@@ -104,6 +127,11 @@ async function MeContent({
       </div>
 
       <AidCard status={getAidStatus(user.id)} />
+
+      <PayoutSettings
+        initialWechat={payout.wechat_qr}
+        initialAlipay={payout.alipay_qr}
+      />
 
       <LetterAnonymityToggle initial={getLetterAnonymous(user.id)} />
 
@@ -284,34 +312,51 @@ function ReceivedTab({ userId }: { userId: number }) {
   if (apps.length === 0) return <EmptyState title="还没有收到申领" />;
   return (
     <div className="flex flex-col gap-3">
-      {apps.map((a) => (
-        <div key={a.id} className="rounded-card-lg bg-panel p-4 shadow-soft">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <Link href={`/items/${a.item_id}`} className="font-medium text-ink hover:underline">
-                {a.item_title}
-              </Link>
-              <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-ink-soft">
-                <span>{a.applicant_nickname} 想申领</span>
-                {a.item_mode === 'donate' && a.applicant_aid === 1 && (
-                  <Badge tone="blush" size="sm">
-                    帮扶生优先
-                  </Badge>
-                )}
-              </p>
-              {a.reason && <p className="mt-1 text-sm text-ink-soft">留言：{a.reason}</p>}
+      {apps.map((a) => {
+        const act = receivedActions(a);
+        return (
+          <div key={a.id} className="rounded-card-lg bg-panel p-4 shadow-soft">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <Link href={`/items/${a.item_id}`} className="font-medium text-ink hover:underline">
+                  {a.item_title}
+                </Link>
+                <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-ink-soft">
+                  <span>{a.applicant_nickname} 想申领</span>
+                  {a.item_mode === 'donate' && a.applicant_aid === 1 && (
+                    <Badge tone="blush" size="sm">
+                      帮扶生优先
+                    </Badge>
+                  )}
+                  {a.item_mode === 'sale' && a.item_price > 0 && <span>¥{a.item_price}</span>}
+                  {a.status === 'approved' && a.payment_status === 'pending' && (
+                    <Badge tone="warn" size="sm">
+                      等待买家转账
+                    </Badge>
+                  )}
+                  {a.status === 'approved' && a.payment_status === 'paid' && (
+                    <Badge tone="ok" size="sm">
+                      买家已转账
+                    </Badge>
+                  )}
+                </p>
+                {a.reason && <p className="mt-1 text-sm text-ink-soft">留言：{a.reason}</p>}
+              </div>
+              <span
+                className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${appBadge(a.status)}`}
+              >
+                {APPLICATION_STATUS_LABEL[a.status] ?? a.status}
+              </span>
             </div>
-            <span
-              className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${appBadge(a.status)}`}
-            >
-              {APPLICATION_STATUS_LABEL[a.status] ?? a.status}
-            </span>
+            <div className="mt-3">
+              {act.note && <p className="mb-2 text-xs text-ink-soft">{act.note}</p>}
+              {act.actions.length > 0 && (
+                <ApplicationActions applicationId={a.id} actions={act.actions} labels={act.labels} />
+              )}
+            </div>
           </div>
-          <div className="mt-3">
-            <ApplicationActions applicationId={a.id} actions={receivedActions(a.status)} />
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -330,7 +375,15 @@ function AppliedTab({ userId }: { userId: number }) {
               <Link href={`/items/${a.item_id}`} className="font-medium text-ink hover:underline">
                 {a.item_title}
               </Link>
-              <p className="mt-1 text-sm text-ink-soft">来自 {a.owner_nickname}</p>
+              <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-ink-soft">
+                <span>来自 {a.owner_nickname}</span>
+                {a.item_mode === 'sale' && a.item_price > 0 && <span>¥{a.item_price}</span>}
+                {a.status === 'approved' && a.payment_status === 'paid' && (
+                  <Badge tone="ok" size="sm">
+                    已转账，待卖家确认
+                  </Badge>
+                )}
+              </p>
               {a.reason && <p className="mt-1 text-sm text-ink-soft">我的留言：{a.reason}</p>}
             </div>
             <span
@@ -339,8 +392,20 @@ function AppliedTab({ userId }: { userId: number }) {
               {APPLICATION_STATUS_LABEL[a.status] ?? a.status}
             </span>
           </div>
-          <div className="mt-3">
+          <div className="mt-3 flex flex-wrap items-center gap-2">
             <ApplicationActions applicationId={a.id} actions={appliedActions(a.status)} />
+            {a.status === 'approved' &&
+              a.item_mode === 'sale' &&
+              a.payment_status !== 'confirmed' && (
+                <PaymentPanel
+                  applicationId={a.id}
+                  amount={a.item_price}
+                  wechatQr={a.owner_wechat_qr}
+                  alipayQr={a.owner_alipay_qr}
+                  currentMethod={a.payment_method === 'wechat' || a.payment_method === 'alipay' ? a.payment_method : null}
+                  currentStatus={a.payment_status}
+                />
+              )}
           </div>
         </div>
       ))}

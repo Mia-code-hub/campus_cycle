@@ -24,6 +24,9 @@ ensureColumn('users', 'letter_anonymous', 'letter_anonymous INTEGER NOT NULL DEF
 ensureColumn('letters', 'source', "source TEXT NOT NULL DEFAULT 'ai'");
 // 向量来源模型：换 embedding 模型后旧向量不能和新向量比余弦，靠这一列判定失效
 ensureColumn('items', 'embedding_model', 'embedding_model TEXT');
+// 收款码（收款码支付模式）：平台只撮合不碰钱
+ensureColumn('users', 'wechat_qr', 'wechat_qr TEXT');
+ensureColumn('users', 'alipay_qr', 'alipay_qr TEXT');
 
 const rows = db
   .prepare(
