@@ -4,7 +4,9 @@ import { CO2_PER_KG, GREEN_WEIGHT_KG, PAPER_SHARE } from './green-factors.ts';
 // 避免「页面上写 30 天、SQL 里算 7 天」这种对不上的情况。
 // 纯常量与纯函数，不碰数据库，便于 node:test 直接引入。
 
-export const STATS_VERSION = 'R17';
+// 口径版本：口径本身没变时不改算法，只随轮次前进。
+// R18 起报告页会把这一版号印在报告脚注里，方便对着 docs 复核。
+export const STATS_VERSION = 'R18';
 
 export type MetricKey =
   | 'totalItems'

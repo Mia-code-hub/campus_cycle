@@ -69,6 +69,18 @@ async function DashboardContent() {
             AI 留痕 →
           </Link>
           <Link
+            href="/admin/donations"
+            className="rounded-card-sm px-3 py-1.5 text-ink transition hover:bg-cream"
+          >
+            捐赠台账
+          </Link>
+          <Link
+            href="/admin/report"
+            className="rounded-card-sm px-3 py-1.5 text-ink transition hover:bg-cream"
+          >
+            报告
+          </Link>
+          <Link
             href="/admin/violations"
             className="rounded-card-sm px-3 py-1.5 text-ink transition hover:bg-cream"
           >
@@ -149,7 +161,8 @@ async function DashboardContent() {
           <div>
             <h2 className="text-sm font-semibold tracking-tight">环保报告</h2>
             <p className="mt-1 text-[11px] leading-relaxed text-ink-soft">
-              把上面这些数字交给模型写成一份可读的报告，数字原样引用、不许推算。
+              把上面这份统计快照交给模型写成 600-900 字报告，数字原样引用、不许推算；
+              服务端逐字比对白名单，不通过的正文不展示。
             </p>
           </div>
           <ReportButton />

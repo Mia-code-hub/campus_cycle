@@ -68,3 +68,40 @@ body {
     0 10px 28px rgba(74, 74, 85, 0.1),
     inset 0 0 60px rgba(247, 178, 189, 0.06);
 }
+
+/* ——— 打印 / 导出 PDF ———
+   报告的 PDF 走浏览器原生打印：不引第三方 PDF 库，中文与 ECharts 画布都由浏览器自己排版。
+   这里只做三件事：去掉底色与阴影、把纸面边距交给 @page、把纸张设成 A4。 */
+@page {
+  size: A4;
+  margin: 16mm;
+}
+
+@media print {
+  html,
+  body {
+    background: #fff;
+  }
+
+  /* 米色底与彩色卡片在纸上会糊成一块，统一压成白底深字 */
+  .report-sheet {
+    background: #fff;
+    color: #1f1f24;
+  }
+
+  /* 图表卡片的分割线在纸上偏淡，加深一点，避免两图糊在一起 */
+  .report-sheet figure {
+    border-color: rgba(0, 0, 0, 0.18);
+  }
+
+  /* 表格、图、段落都尽量别被切断到两页 */
+  .report-sheet figure,
+  .report-sheet section,
+  .report-sheet footer {
+    break-inside: avoid;
+  }
+
+  a[href]::after {
+    content: none;
+  }
+}

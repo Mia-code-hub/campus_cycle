@@ -7,7 +7,7 @@ export default async function Navbar() {
   const user = await getCurrentUser();
 
   return (
-    <nav className="sticky top-0 z-10 border-b border-black/5 bg-panel/90 backdrop-blur">
+    <nav className="sticky top-0 z-10 border-b border-black/5 bg-panel/90 backdrop-blur print:hidden">
       <div className="mx-auto flex h-14 w-full max-w-5xl items-center justify-between px-6">
         <Link href="/" className="shrink-0 text-base font-semibold tracking-tight">
           校园闲置循环

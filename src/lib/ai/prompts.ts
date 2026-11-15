@@ -344,3 +344,73 @@ export function buildLetterPrompt(ctx: LetterPromptContext, retry?: string): Let
 export function buildLetterLogText(prompt: LetterPrompt): string {
   return `${prompt.system}\n\n---\n\n${prompt.user}`;
 }
+
+// ——— R18 环保效益报告 ———
+//
+// 这一份 prompt 的特殊之处：它的输出会被机器逐字校验（见 src/lib/report/verify.ts）。
+// 所以指令里不谈文采，只谈「数字只能来自数据区」——把校验规则提前写进 prompt，
+// 校验失败才算模型的错，而不是我们没把话说清楚。
+
+const REPORT_SYSTEM = [
+  '你是「校园闲置物资循环平台」的数据报告撰写人，读者是学校管理部门与公益合作方。',
+  '你写的正文会被机器逐字校验：每一个阿拉伯数字都必须在给出的数据区里原样出现，否则整份报告作废。',
+  '你不做计算。数据区里没有的结论不写；数据区里没有的数字，一个都不写。',
+  '你写的是一份可以盖章交出去的说明材料：陈述事实、指出问题、给出建议，不喊口号，不用形容词堆规模。',
+  '只输出报告正文：不要标题、不要小标题编号、不要表格、不要列表符号、不要 Markdown、不要代码块，',
+  '也不要「以下是报告」「根据数据」这类开场白。',
+].join('\n');
+
+export interface ReportPromptOptions {
+  /** 数据区原文，同时是数字白名单的来源 */
+  payloadText: string;
+  /** 白名单（已排序），列在 prompt 里给模型自查 */
+  allowlist: string[];
+  months: number;
+  minChars?: number;
+  maxChars?: number;
+  /** 第二版重写提示：点名上一次具体错在哪 */
+  retry?: string;
+}
+
+export interface ReportPrompt {
+  system: string;
+  user: string;
+}
+
+export function buildReportPrompt(opts: ReportPromptOptions): ReportPrompt {
+  const min = opts.minChars ?? 600;
+  const max = opts.maxChars ?? 900;
+  const perPara = `${Math.round(min / 4)}-${Math.round(max / 4)}`;
+
+  const user = [
+    '请根据下面的数据，写一份校园闲置物资循环的环保效益报告。',
+    '',
+    '写作要求：',
+    `1. 正文 ${min}-${max} 字（按去掉空白后的字符数计，含标点）。写四段，段与段之间空一行，每段约 ${perPara} 字。`,
+    '2. 四段分别写：总量现状；结构分析（转售与捐赠的构成、类别分布、学院受益）；环境效益（折算重量、节约纸张、减碳量）；问题与建议。',
+    '3. 每一个阿拉伯数字都必须从「数据」区原样复制，小数位一起照抄：数据写 7.15 kg 就写 7.15 kg，不要写成 7.2 kg，也不要写成约 7 kg。',
+    '4. 禁止任何推算：不写差值、倍数、平均值、增长率、人均值、预测值，也不要把两个数字加起来。占比数据区已经算好，直接引用。',
+    '5. 不要用「约」「近」「超过」「接近」去修饰一个数据区里没有的数字；需要模糊表述时用「多数」「一半以上」这类词。',
+    '6. 除百分比和单位之外，不要写序号数字（如 1、2、3）；需要分点时用「其一」「其二」或直接用文字叙述。',
+    '7. 不写具体人名、学号、宿舍号、联系方式，也不写数据区之外的单位名与合作方。',
+    '8. 环境效益属于估算，正文里至少明确说一次「参考估算」。',
+    '9. 最后一段收尾时用一句话说明数据口径与估算性质，不要再单起「数据来源」小标题。',
+    '10. 不要写「作为 AI」「根据您提供的数据」这类机器口吻，直接以平台名义陈述。',
+    '11. 如果某一段实在缺少数据支撑，就把重点放在已有数字的解释与机制上，绝对不要编造数字填空。',
+    '',
+    `【数字白名单】正文只能出现下列数字（共 ${opts.allowlist.length} 个，同一数字的不同写法等价，如 15.0 与 15）：`,
+    opts.allowlist.join('、'),
+    '',
+    '【数据】',
+    opts.payloadText,
+    '',
+    opts.retry ?? '',
+    '现在开始写，只输出正文。',
+  ].join('\n');
+
+  return { system: REPORT_SYSTEM, user };
+}
+
+export function buildReportLogText(prompt: ReportPrompt): string {
+  return `${prompt.system}\n\n---\n\n${prompt.user}`;
+}

@@ -109,6 +109,27 @@ CREATE TABLE IF NOT EXISTS aid_applications (
   reviewed_at  TEXT
 );
 
+-- 环保报告：正文 + 生成时的数据快照 + 校验结果。
+-- 校验不通过的记录也留在表里（verify_status='fail'），但页面只展示 pass 的正文——
+-- 「不通过就不展示」要实现成一条写进数据的规则，而不是页面上的一个 if。
+CREATE TABLE IF NOT EXISTS reports (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  title         TEXT    NOT NULL,
+  content       TEXT    NOT NULL,
+  model         TEXT    NOT NULL,
+  months        INTEGER NOT NULL DEFAULT 6,
+  char_count    INTEGER NOT NULL DEFAULT 0,
+  verify_status TEXT    NOT NULL CHECK (verify_status IN ('pass','fail')),
+  verify_json   TEXT,
+  -- 生成时用的数据快照：报告页的图与数字表都读它，不读实时数据
+  snapshot_json TEXT    NOT NULL,
+  -- 送进 prompt 的数据原文，也是数字白名单的来源，留档便于逐字复核
+  payload_text  TEXT    NOT NULL,
+  created_by    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at    TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_reports_created ON reports(created_at);
+
 -- AI 调用留痕：比赛要交的「Prompt 历史快照」直接来自这张表
 CREATE TABLE IF NOT EXISTS ai_call_logs (
   id            INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -12,7 +12,7 @@ import {
   getPlatformStats,
   statsCaliber,
 } from '../src/server/stats.ts';
-import { METRIC_CALIBER } from '../src/lib/stats-defs.ts';
+import { METRIC_CALIBER, STATS_VERSION } from '../src/lib/stats-defs.ts';
 import { CO2_PER_KG } from '../src/lib/green-factors.ts';
 
 // 统计层的关键数字在这里钉死：数据是手工造的，期望值是手算出来的，
@@ -280,7 +280,8 @@ test('口径覆盖：返回值里每个指标都有对应说明', () => {
   assert.deepEqual(keys, documented);
 
   const caliber = statsCaliber(6);
-  assert.equal(caliber.version, 'R17');
+  // 版本号跟着 STATS_VERSION 走：口径没变时只随轮次前进，别再写死字符串
+  assert.equal(caliber.version, STATS_VERSION);
   assert.equal(caliber.window.trendMonths, 6);
   assert.equal(caliber.window.activeUserDays, 30);
   assert.match(caliber.formulas.greenWeightKg, /参考估算值/);

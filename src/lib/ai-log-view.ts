@@ -56,9 +56,10 @@ export const AI_FEATURE_META: Record<AiFeatureName, AiFeatureMeta> = {
     purpose: '确认 key 与模型通道可用，顺带验证留痕落库',
   },
   report: {
-    label: '联调自检（demo）',
-    round: 'R9',
-    purpose: '走通 prompt → 调用 → 解析 → 留痕的完整链路，交付前删除',
+    label: '环保效益报告',
+    round: 'R18',
+    purpose:
+      '把统计快照写成 600-900 字报告，数字只能原样引用；服务端逐字比对白名单，不通过即作废',
   },
 };
 
