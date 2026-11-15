@@ -2,6 +2,7 @@ import { Suspense } from 'react';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getCurrentUser } from '@/server/auth';
+import { getAidStatus } from '@/server/aid';
 import {
   getMyStats,
   getMyItems,
@@ -17,6 +18,8 @@ import {
 } from '@/lib/constants';
 import ItemCard from '@/components/ItemCard';
 import EmptyState from '@/components/ui/EmptyState';
+import Badge, { type BadgeTone } from '@/components/ui/Badge';
+import { ButtonLink } from '@/components/ui/Button';
 import ApplicationActions from '@/components/ApplicationActions';
 import ItemWithdrawButton from '@/components/ItemWithdrawButton';
 import LetterAnonymityToggle from '@/components/letters/LetterAnonymityToggle';
@@ -100,6 +103,8 @@ async function MeContent({
         <StatCard label="我收到的" value={stats.received} />
       </div>
 
+      <AidCard status={getAidStatus(user.id)} />
+
       <LetterAnonymityToggle initial={getLetterAnonymous(user.id)} />
 
       <div className="flex gap-1 border-b border-line">
@@ -132,6 +137,73 @@ function StatCard({ label, value }: { label: string; value: number }) {
       <p className="text-3xl font-semibold text-ink">{value}</p>
       <p className="mt-1 text-sm text-ink-soft">{label}</p>
     </div>
+  );
+}
+
+/**
+ * 帮扶资格四态：0 未申请 / 1 已通过 / 2 审核中 / 3 已驳回。
+ * 认定标准由学校掌握，平台只记录审核结果，所以文案只讲「资格」不给人贴标签。
+ */
+function aidView(status: number): {
+  badge: string;
+  tone: BadgeTone;
+  desc: string;
+  action: string;
+  variant: 'primary' | 'secondary' | 'ghost';
+} {
+  if (status === 1) {
+    return {
+      badge: '已认证',
+      tone: 'ok',
+      desc: '公益捐赠物资优先向你开放，物主处理申领时会看到你的帮扶身份。',
+      action: '查看详情',
+      variant: 'ghost',
+    };
+  }
+  if (status === 2) {
+    return {
+      badge: '审核中',
+      tone: 'warn',
+      desc: '申请已提交，管理员审核通过后即可享受公益物资优先。',
+      action: '查看进度',
+      variant: 'ghost',
+    };
+  }
+  if (status === 3) {
+    return {
+      badge: '未通过',
+      tone: 'danger',
+      desc: '本次申请未通过，可以修改说明后重新提交。',
+      action: '重新申请',
+      variant: 'secondary',
+    };
+  }
+  return {
+    badge: '未申请',
+    tone: 'neutral',
+    desc: '家庭经济困难学生认定。通过后公益捐赠物资优先向你开放。',
+    action: '去申请',
+    variant: 'primary',
+  };
+}
+
+function AidCard({ status }: { status: number }) {
+  const v = aidView(status);
+  return (
+    <section className="flex flex-col gap-3 rounded-card-lg bg-panel p-5 shadow-soft sm:flex-row sm:items-center sm:justify-between">
+      <div className="min-w-0">
+        <div className="flex items-center gap-2">
+          <h2 className="text-base font-semibold text-ink">帮扶资格认证</h2>
+          <Badge tone={v.tone} size="sm">
+            {v.badge}
+          </Badge>
+        </div>
+        <p className="mt-1 text-sm leading-6 text-ink-soft">{v.desc}</p>
+      </div>
+      <ButtonLink href="/me/aid" variant={v.variant} size="sm" className="shrink-0">
+        {v.action}
+      </ButtonLink>
+    </section>
   );
 }
 
@@ -219,7 +291,14 @@ function ReceivedTab({ userId }: { userId: number }) {
               <Link href={`/items/${a.item_id}`} className="font-medium text-ink hover:underline">
                 {a.item_title}
               </Link>
-              <p className="mt-1 text-sm text-ink-soft">{a.applicant_nickname} 想申领</p>
+              <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-ink-soft">
+                <span>{a.applicant_nickname} 想申领</span>
+                {a.item_mode === 'donate' && a.applicant_aid === 1 && (
+                  <Badge tone="blush" size="sm">
+                    帮扶生优先
+                  </Badge>
+                )}
+              </p>
               {a.reason && <p className="mt-1 text-sm text-ink-soft">留言：{a.reason}</p>}
             </div>
             <span

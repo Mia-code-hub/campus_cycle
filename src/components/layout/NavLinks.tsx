@@ -14,6 +14,7 @@ const LINKS: NavItem[] = [
 
 const ADMIN_LINKS: NavItem[] = [
   { href: '/admin', label: '看板' },
+  { href: '/admin/aid', label: '帮扶' },
   { href: '/admin/violations', label: '复核' },
   { href: '/admin/ai-logs', label: '留痕' },
   { href: '/admin/donations', label: '台账' },

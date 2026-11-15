@@ -13,8 +13,11 @@ export interface ReceivedApplicationRow {
   id: number;
   item_id: number;
   item_title: string;
+  item_mode: string;
   applicant_id: number;
   applicant_nickname: string;
+  /** 申请人是否已通过帮扶资格审核：捐赠物品的申领要按这个优先 */
+  applicant_aid: number;
   reason: string | null;
   status: string;
   created_at: string;
@@ -70,16 +73,21 @@ export function getMyFavorites(userId: number): ItemSummary[] {
     .all(userId) as ItemSummary[];
 }
 
+// 捐赠物品的申领按「帮扶生优先」排：已通过帮扶资格审核的申请人置顶，其余仍按时间倒序。
+// 只对 mode='donate' 生效——二手交易讲究先来后到，不能因为身份插队。
 export function getReceivedApplications(userId: number): ReceivedApplicationRow[] {
   return getDb()
     .prepare(
-      `SELECT a.id, a.item_id, i.title AS item_title, a.applicant_id, u.nickname AS applicant_nickname,
+      `SELECT a.id, a.item_id, i.title AS item_title, i.mode AS item_mode,
+              a.applicant_id, u.nickname AS applicant_nickname,
+              u.is_aid_approved AS applicant_aid,
               a.reason, a.status, a.created_at
        FROM applications a
        JOIN items i ON i.id = a.item_id
        JOIN users u ON u.id = a.applicant_id
        WHERE i.owner_id = ?
-       ORDER BY a.created_at DESC, a.id DESC`,
+       ORDER BY CASE WHEN i.mode = 'donate' AND u.is_aid_approved = 1 THEN 0 ELSE 1 END,
+                a.created_at DESC, a.id DESC`,
     )
     .all(userId) as ReceivedApplicationRow[];
 }
