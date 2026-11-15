@@ -1,5 +1,7 @@
 import { after } from 'next/server';
+import Link from 'next/link';
 import { listItems, toNum } from '@/server/items';
+import { getCurrentUser } from '@/server/auth';
 import { backfillMissingEmbeddings } from '@/lib/ai/embed';
 import ItemCard from '@/components/ItemCard';
 import FilterBar from '@/components/FilterBar';
@@ -18,16 +20,23 @@ const MODULES = [
     title: '公益捐赠通道',
     desc: '闲置定向流转给通过审核的困难生，AI 生成捐赠标签与电子感谢信，全程留台账。',
     tone: 'blush' as const,
+    href: '/donate',
+    cta: '去公益专区',
   },
   {
     title: 'AI 发布与语义找物',
     desc: '拍张照一句话，自动出类别、成色、文案与参考价；搜索按语义匹配而非关键词。',
     tone: 'lilac' as const,
+    href: '/publish',
+    cta: '去发布一件',
   },
   {
     title: '环保数据看板',
     desc: '流转件数、捐赠占比、折算减碳量自动统计，一键生成校园循环环保报告。',
     tone: 'sky' as const,
+    href: '/admin',
+    cta: '看数据看板',
+    adminOnly: true,
   },
 ];
 
@@ -54,6 +63,8 @@ function buildHref(
 
 export default async function Home({ searchParams }: { searchParams: SearchParams }) {
   const sp = await searchParams;
+  const user = await getCurrentUser();
+  const isAdmin = user?.role === 'admin';
   const category = first(sp.category) ?? '';
   const mode = first(sp.mode) ?? '';
   const condition = first(sp.condition) ?? '';
@@ -135,23 +146,42 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
       )}
 
       <Card radius="lg" padding="xl">
-        <h2 className="text-base font-semibold">平台能力</h2>
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="text-base font-semibold">平台能力</h2>
+          <p className="text-xs text-ink-soft">三块都能点进去，看板需要管理员账号</p>
+        </div>
         <div className="mt-4 grid gap-4 sm:grid-cols-3">
-          {MODULES.map((m) => (
-            <Card
-              key={m.title}
-              radius="md"
-              padding="lg"
-              tone="sunken"
-              className="transition duration-200 hover:-translate-y-0.5 hover:shadow-lift"
-            >
-              <Badge tone={m.tone} size="sm">
-                模块
-              </Badge>
-              <h3 className="mt-3 text-base font-semibold">{m.title}</h3>
-              <p className="mt-2 text-sm leading-6 text-ink-soft">{m.desc}</p>
-            </Card>
-          ))}
+          {MODULES.map((m) => {
+            const locked = m.adminOnly === true && !isAdmin;
+            const href = locked ? '/login?next=/admin' : m.href;
+            return (
+              <Card
+                key={m.title}
+                radius="md"
+                padding="none"
+                tone="sunken"
+                className="group transition duration-200 hover:-translate-y-0.5 hover:bg-raise hover:shadow-lift"
+              >
+                <Link
+                  href={href}
+                  className="flex h-full flex-col rounded-card p-5"
+                  aria-label={`${m.title}：${locked ? '需管理员账号，前往登录' : m.cta}`}
+                >
+                  <Badge tone={locked ? 'outline' : m.tone} size="sm" className="self-start">
+                    {locked ? '需管理员' : '模块'}
+                  </Badge>
+                  <h3 className="mt-3 text-base font-semibold">{m.title}</h3>
+                  <p className="mt-2 text-sm leading-6 text-ink-soft">{m.desc}</p>
+                  <span className="mt-4 flex items-center gap-1 text-xs font-medium text-ink-soft transition group-hover:text-ink">
+                    {locked ? '用管理员账号登录后查看' : m.cta}
+                    <span aria-hidden="true" className="transition group-hover:translate-x-0.5">
+                      →
+                    </span>
+                  </span>
+                </Link>
+              </Card>
+            );
+          })}
         </div>
       </Card>
     </main>
