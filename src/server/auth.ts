@@ -1,5 +1,6 @@
 import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import { cookies } from 'next/headers';
+import { connection } from 'next/server';
 import { getDb } from './db';
 import { hashPassword, verifyPassword } from './password';
 import type { SessionUser } from '@/lib/types';
@@ -122,6 +123,11 @@ export function sessionCookieOptions() {
 
 // 从 httpOnly cookie 解析当前登录用户，未登录/令牌非法/已吊销返回 null
 export async function getCurrentUser(): Promise<SessionUser | null> {
+  // 会话能不能用取决于「此刻」是否已过期（nowSeconds 取 new Date()），
+  // 天然属于按请求取值。这里统一声明一次，让所有调用方（页面与 API 路由）
+  // 都不会被 Next 16 的静态外壳预渲染误判成 blocking-prerender-current-time。
+  await connection();
+
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
   const payload = readToken(token);
   if (!payload) return null;
