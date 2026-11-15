@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/server/auth';
+import { guardAi } from '@/server/rate-limit';
 import { canUseVision, chat, hasModelKey, VISION_TIMEOUT_MS, type ChatMessage } from '@/lib/ai/client';
 import { safeParseJson } from '@/lib/ai/json';
 import { withAiLog, type AiResult } from '@/lib/ai/withAiLog';
@@ -63,6 +64,10 @@ export async function POST(req: Request) {
       { status: 401 },
     );
   }
+
+  // 一次发布最多会打 2 次（视觉失败退文本），额度按用户全局算
+  const limited = guardAi(req, { userId: user.id, scope: 'write' });
+  if (limited) return limited;
 
   let raw: unknown;
   try {

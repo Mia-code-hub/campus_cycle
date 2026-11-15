@@ -68,17 +68,19 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     return NextResponse.json({ ok: false, code: 'NOT_FOUND', message: '物品不存在' }, { status: 404 });
   }
 
-  // 授权：越权一律 403
+  // 授权：越权一律 404（不是 403）。
+  // 403 与 404 混用等于告诉外部「这张申领单存在，只是你没权限」，
+  // 拿 id 递增就能摸清库里有几条申领、哪些还没处理。
   const isOwner = item.owner_id === user.id;
   const isApplicant = app.applicant_id === user.id;
   if (action === 'approve' || action === 'reject' || action === 'complete') {
     if (!isOwner) {
-      return NextResponse.json({ ok: false, code: 'FORBIDDEN', message: '无权操作该申领单' }, { status: 403 });
+      return NextResponse.json({ ok: false, code: 'NOT_FOUND', message: '申领单不存在' }, { status: 404 });
     }
   } else {
     // cancel：申领人或主人
     if (!isApplicant && !isOwner) {
-      return NextResponse.json({ ok: false, code: 'FORBIDDEN', message: '无权操作该申领单' }, { status: 403 });
+      return NextResponse.json({ ok: false, code: 'NOT_FOUND', message: '申领单不存在' }, { status: 404 });
     }
   }
 
@@ -95,8 +97,11 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   try {
     next = transition(item, app, action, otherActive);
   } catch (e) {
+    // transition() 的原文带数据库状态字段与内部规则（如「当前为 completed」），
+    // 对外只给一句固定文案，原文留在服务端日志里
+    console.warn('[applications] 状态机拒绝:', (e as Error).message);
     return NextResponse.json(
-      { ok: false, code: 'ILLEGAL_TRANSITION', message: (e as Error).message },
+      { ok: false, code: 'ILLEGAL_TRANSITION', message: '当前状态不支持该操作，请刷新后再试' },
       { status: 400 },
     );
   }

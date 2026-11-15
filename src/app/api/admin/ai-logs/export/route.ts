@@ -56,7 +56,8 @@ export async function GET(req: Request) {
   const payload = buildExportPayload(rows, {
     feature,
     exportedAt: localIso(),
-    source: process.env.DATABASE_PATH ?? './data/campus.db',
+    // 这里只放逻辑标识：把 DATABASE_PATH 原样写进导出文件，等于把服务器目录结构送人
+    source: 'sqlite:ai_call_logs',
   });
   return new NextResponse(JSON.stringify(payload, null, 2), {
     headers: {

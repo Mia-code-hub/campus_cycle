@@ -1,10 +1,15 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { getDb } from '@/server/db';
-import { hashPassword, signSession, SESSION_COOKIE, sessionCookieOptions } from '@/server/auth';
+import { createSession, hashPassword, SESSION_COOKIE, sessionCookieOptions } from '@/server/auth';
+import { checkRegisterLimit } from '@/server/rate-limit';
 import type { SessionUser } from '@/lib/types';
 
 export async function POST(req: Request) {
+  // 注册不限流的话，一个脚本就能把 users 表灌满
+  const limited = checkRegisterLimit(req);
+  if (limited) return limited;
+
   let raw: unknown;
   try {
     raw = await req.json();
@@ -61,7 +66,11 @@ export async function POST(req: Request) {
   const user: SessionUser = { id: Number(info.lastInsertRowid), username, nickname, role };
 
   const cookieStore = await cookies();
-  cookieStore.set(SESSION_COOKIE, signSession(user.id), sessionCookieOptions());
+  cookieStore.set(
+    SESSION_COOKIE,
+    createSession(user.id, req.headers.get('user-agent')),
+    sessionCookieOptions(),
+  );
 
   return NextResponse.json({ ok: true, user });
 }

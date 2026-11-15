@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireUser } from '@/server/auth';
+import { guardAi } from '@/server/rate-limit';
 import { generateReport } from '@/server/reports';
 
 // POST /api/ai/report —— 生成一份环保报告（管理员限定）
@@ -18,6 +19,10 @@ export async function POST(req: Request) {
   if (user.role !== 'admin') {
     return NextResponse.json({ ok: false, code: 'FORBIDDEN', message: '无权限' }, { status: 403 });
   }
+
+  // 报告单次要跑 2 次调用 + 300s，管理员脚本循环就是烧钱
+  const limited = guardAi(req, { userId: user.id, scope: 'write' });
+  if (limited) return limited;
 
   let raw: unknown;
   try {

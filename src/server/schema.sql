@@ -16,6 +16,33 @@ CREATE TABLE IF NOT EXISTS users (
   created_at      TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
 );
 
+-- 会话表：令牌里的 jti 在这里有唯一一行，删/改这一行即刻让令牌失效。
+-- 没有这张表时，「退出登录」只是删掉浏览器 cookie，偷走的令牌照样能用。
+CREATE TABLE IF NOT EXISTS sessions (
+  jti        TEXT    PRIMARY KEY,
+  user_id    INTEGER NOT NULL,
+  created_at TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
+  expires_at INTEGER NOT NULL,
+  revoked_at TEXT,
+  user_agent TEXT,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_exp  ON sessions(expires_at);
+
+-- 上传归属：文件名本身不含身份信息，靠这张表记「谁传的、用在哪件物品上」。
+-- 没有它，任何登录用户都能把别人的图片挂到自己发布的物品上（盗图、栽赃）。
+CREATE TABLE IF NOT EXISTS uploads (
+  path         TEXT    PRIMARY KEY,
+  user_id      INTEGER NOT NULL,
+  created_at   TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
+  used_item_id INTEGER,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_uploads_user ON uploads(user_id, created_at);
+
 CREATE TABLE IF NOT EXISTS items (
   id               INTEGER PRIMARY KEY AUTOINCREMENT,
   owner_id         INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,

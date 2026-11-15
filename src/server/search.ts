@@ -81,12 +81,32 @@ async function generateGuide(
   return res.ok ? res.parsed : '';
 }
 
+export interface SearchOptions {
+  /**
+   * 是否允许调用模型。匿名访客（未登录）走 false：
+   * 只做关键词召回，不产生 embedding 与导购语调用 —— 否则 /api/ai/search
+   * 就是一个公开的免费 AI 网关。
+   */
+  allowAi?: boolean;
+}
+
 export async function runSemanticSearch(
   query: string,
   viewerId: number | null,
+  opts: SearchOptions = {},
 ): Promise<SearchOutcome> {
   const q = query.trim().slice(0, 100);
   if (!q) return { items: [], guide: '', engine: 'vector', degraded: false };
+
+  if (opts.allowAi === false) {
+    return {
+      items: keywordSearch(q, { topK: SEARCH_TOP_K, viewerId }),
+      guide: '',
+      engine: 'keyword',
+      degraded: true,
+      reason: '登录后可用语义检索与 AI 导购',
+    };
+  }
 
   const embedded = await embedTexts([q], { userId: viewerId });
 

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireUser } from '@/server/auth';
+import { guardAi } from '@/server/rate-limit';
 import { generateLetter, loadLetterContext } from '@/server/letters';
 
 // 捐赠感谢信生成 / 复用
@@ -11,6 +12,9 @@ export async function POST(req: Request) {
   if (!user) {
     return NextResponse.json({ ok: false, code: 'UNAUTHORIZED', message: '请先登录' }, { status: 401 });
   }
+
+  const limited = guardAi(req, { userId: user.id, scope: 'write' });
+  if (limited) return limited;
 
   let raw: unknown;
   try {

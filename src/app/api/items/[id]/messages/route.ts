@@ -26,7 +26,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 
   const peerId = getConversationPeer(itemId, user.id);
   if (peerId == null) {
-    return NextResponse.json({ ok: false, code: 'FORBIDDEN', message: '无权查看该对话' }, { status: 403 });
+    // 没有 approved 关系 = 这段对话对你根本不存在，回 404 而不是 403
+    return NextResponse.json({ ok: false, code: 'NOT_FOUND', message: '对话不存在' }, { status: 404 });
   }
 
   const messages = listMessages(itemId, user.id, peerId).map((m) => ({
@@ -59,7 +60,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   const peerId = getConversationPeer(itemId, user.id);
   if (peerId == null) {
-    return NextResponse.json({ ok: false, code: 'FORBIDDEN', message: '无权发送消息' }, { status: 403 });
+    return NextResponse.json({ ok: false, code: 'NOT_FOUND', message: '对话不存在' }, { status: 404 });
   }
 
   let raw: unknown;

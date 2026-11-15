@@ -19,6 +19,22 @@ export interface LogAiCallParams {
   status: AiStatus;
 }
 
+// prompt / 响应各截 32KB。
+//
+// 两个理由：① 带图请求的 prompt 里是一整段 base64，一次就几百 KB，
+// 有人反复刷就能把库撑大；② 这些文本含用户描述、感谢信上下文（昵称/学院），
+// 属于 PII，保留够复盘的分量就行，没必要全文永久留存。
+const MAX_TEXT_CHARS = 32 * 1024;
+
+function clip(text: string, max = MAX_TEXT_CHARS): string {
+  if (text.length <= max) return text;
+  // 别把 emoji 的代理对切成半个字符
+  let end = max;
+  const last = text.charCodeAt(end - 1);
+  if (last >= 0xd800 && last <= 0xdbff) end -= 1;
+  return `${text.slice(0, end)}\n…（已截断，原长 ${text.length} 字符）`;
+}
+
 export function logAiCall(p: LogAiCallParams): number {
   const db = getDb();
   const parsed =
@@ -34,9 +50,9 @@ export function logAiCall(p: LogAiCallParams): number {
       p.model,
       p.userId ?? null,
       p.refItemId ?? null,
-      p.prompt,
-      p.raw,
-      parsed,
+      clip(p.prompt),
+      clip(p.raw),
+      parsed == null ? null : clip(parsed, 8 * 1024),
       p.latencyMs ?? null,
       p.status,
     );

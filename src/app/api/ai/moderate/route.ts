@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/server/auth';
+import { guardAi } from '@/server/rate-limit';
 import { moderateListing } from '@/server/moderation';
 import { moderationCategoryLabel } from '@/lib/banned-terms';
 
@@ -18,6 +19,10 @@ export async function POST(req: Request) {
       { status: 401 },
     );
   }
+
+  // 一次发布可能连着调 precheck + confirm，额度和写操作共用一个桶
+  const limited = guardAi(req, { userId: user.id, scope: 'write' });
+  if (limited) return limited;
 
   let raw: unknown;
   try {

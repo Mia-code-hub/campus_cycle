@@ -7,6 +7,7 @@ import { embedItem } from '@/lib/ai/embed';
 import { moderateListing, uploadToDataUrl } from '@/server/moderation';
 import { violationNote } from '@/lib/ai/moderate';
 import { moderationCategoryLabel } from '@/lib/banned-terms';
+import { isOwnUpload, markUploadUsed } from '@/server/uploads';
 
 export async function GET(req: NextRequest) {
   const sp = req.nextUrl.searchParams;
@@ -95,6 +96,15 @@ export async function POST(req: Request) {
   if (imagePath && !/^\/uploads\/[a-f0-9-]+\.(jpg|jpeg|png|webp)$/i.test(imagePath)) {
     return NextResponse.json(
       { ok: false, code: 'INVALID_IMAGE', message: '图片路径不合法' },
+      { status: 400 },
+    );
+  }
+
+  // 路径合法 ≠ 图片是你的。没有这一条，任何登录用户都能把别人的图片 / 违规图
+  // 挂到自己发布的物品上：盗图、栽赃、让别人背锅都只需要猜一串 uuid。
+  if (imagePath && !isOwnUpload(user.id, imagePath)) {
+    return NextResponse.json(
+      { ok: false, code: 'IMAGE_NOT_OWNED', message: '请上传自己的图片' },
       { status: 400 },
     );
   }
@@ -191,6 +201,9 @@ export async function POST(req: Request) {
     );
 
   const newId = Number(info.lastInsertRowid);
+
+  // 把「这张图用在哪件物品上」补进 uploads，清理孤儿文件时有据可依
+  if (imagePath) markUploadUsed(imagePath, newId);
 
   // 向量化放在响应之后跑：发布不等 AI，模型挂了也不影响物品上架，
   // 列表页的补算逻辑会把缺向量的记录补上。

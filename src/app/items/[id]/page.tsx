@@ -38,6 +38,12 @@ export default async function ItemDetailPage({
   const user = await getCurrentUser();
   const favorited = user ? isFavorited(user.id, item.id) : false;
   const isOwner = user ? user.id === item.owner_id : false;
+
+  // 已下架（violation_flag=1）的东西对外就是不存在。
+  // 列表和搜索都过滤了它，详情页如果只按 id 查就会变成一条「下架了还能看」的捷径——
+  // 违规内容照样在传播，只是从列表里消失了。本人和管理员仍然能看，用来申诉与复核。
+  if (item.violation_flag === 1 && !isOwner && user?.role !== 'admin') notFound();
+
   const peerId = user ? getConversationPeer(item.id, user.id) : null;
 
   return (
