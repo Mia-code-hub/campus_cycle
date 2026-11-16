@@ -149,7 +149,6 @@ campus_cycle/
 | [docs/04-AI接口契约.md](docs/04-AI接口契约.md) | AI 接口的输入输出、降级策略、Prompt 设计 |
 | [docs/05-安全复查.md](docs/05-安全复查.md) | 全仓安全复查：越权、SQL、上传、会话、AI 限流 |
 | [docs/06-Prompt链-核心功能迭代.md](docs/06-Prompt链-核心功能迭代.md) | **三个核心功能的完整 Prompt 链**：需求原文 → AI 方案 → Bug 排查修复全过程 |
-| [docs/ai-prompt-history.md](docs/ai-prompt-history.md) | Prompt 历史快照：按功能分组的调用统计与原文 |
 
 ## 验证
 
